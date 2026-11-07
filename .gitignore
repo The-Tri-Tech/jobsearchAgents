@@ -1,0 +1,28 @@
+# Secrets
+.env
+*.env
+!.env.example
+
+# Flutter & Chrome Cache (prevents browser database files)
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Python Cache
+__pycache__/
+*.py[cod]
+skillbridge.db
+
+# Platform auto-generated & ephemeral files
+**/ephemeral/
+**/generated_plugin_registrant.*
+**/GeneratedPluginRegistrant.*
+**/Generated.xcconfig
+**/flutter_export_environment.sh
+**/generated_plugins.*
+
+# IDE
+*.iml
+.idea/
+.vscode/
