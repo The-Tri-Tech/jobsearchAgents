@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", 
-        "postgresql://postgres:Harley9@localhost:5432/webinar"
+        "DATABASE_URL",
+        "sqlite:///./jobsearch.db"
     )
     
     # JWT & Auth

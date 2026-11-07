@@ -18,7 +18,7 @@ SkillBridge is an AI Career operating system featuring a **Flutter** frontend, *
 In a terminal, navigate to the `backend` directory:
 ```powershell
 cd backend
-python run.py
+uv run python run.py
 ```
 The API server will start on: **http://127.0.0.1:8000**
 - API Documentation / Swagger: **http://127.0.0.1:8000/docs**
