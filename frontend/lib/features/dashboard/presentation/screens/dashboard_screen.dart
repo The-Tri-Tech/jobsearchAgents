@@ -5,6 +5,7 @@ import 'package:skillbridge_frontend/features/auth/presentation/screens/auth_scr
 import 'package:skillbridge_frontend/features/resume/presentation/screens/resume_screen.dart';
 import 'package:skillbridge_frontend/features/jd_matcher/presentation/screens/jd_matcher_screen.dart';
 import 'package:skillbridge_frontend/features/jd_evaluation/presentation/screens/jd_evaluation_screen.dart';
+import 'package:skillbridge_frontend/features/chatbot/presentation/widgets/chatbot_panel.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,6 +20,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   int _activeNavIndex = 0;
   bool _isDarkMode = false;
+  bool _isChatOpen = false;
 
   final List<Map<String, dynamic>> _navItems = [
     {"title": "Overview", "icon": Icons.grid_view_rounded},
@@ -118,6 +120,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
+          ),
+
+          // Chat Panel — slides in from the right
+          AnimatedSize(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeInOut,
+            child: _isChatOpen
+                ? ChatbotPanel(
+                    isDarkMode: _isDarkMode,
+                    cardBg: _cardBg,
+                    cardBorder: _cardBorder,
+                    textPrimary: _textPrimary,
+                    textSecondary: _textSecondary,
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -515,6 +532,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ],
+          ),
+
+          // Chat toggle button
+          Tooltip(
+            message: _isChatOpen ? 'Close AI Assistant' : 'Open AI Assistant',
+            child: GestureDetector(
+              onTap: () => setState(() => _isChatOpen = !_isChatOpen),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 36,
+                height: 36,
+                margin: const EdgeInsets.only(left: 4),
+                decoration: BoxDecoration(
+                  color: _isChatOpen
+                      ? const Color(0xFF2563EB)
+                      : (_isDarkMode
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFF2F4F7)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _isChatOpen
+                      ? Icons.chat_rounded
+                      : Icons.chat_outlined,
+                  size: 18,
+                  color: _isChatOpen ? Colors.white : _textSecondary,
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 8),
 
