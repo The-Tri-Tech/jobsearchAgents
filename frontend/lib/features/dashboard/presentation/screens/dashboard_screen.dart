@@ -3,6 +3,7 @@ import 'package:skillbridge_frontend/features/auth/data/datasources/auth_service
 import 'package:skillbridge_frontend/features/auth/data/models/user_model.dart';
 import 'package:skillbridge_frontend/features/auth/presentation/screens/auth_screen.dart';
 import 'package:skillbridge_frontend/features/resume/presentation/screens/resume_screen.dart';
+import 'package:skillbridge_frontend/features/jd_matcher/presentation/screens/jd_matcher_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -122,11 +123,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           textSecondary: _textSecondary,
         );
       case 2:
-        return _buildSectionPlaceholder(
-          title: "JD Matcher",
-          subtitle: "Paste a Job Description to match your skills, identify gaps, and calculate alignment.",
-          icon: Icons.search_rounded,
-          actionText: "Paste Job Description",
+        return JdMatcherScreen(
+          isDarkMode: _isDarkMode,
+          bg: _bg,
+          cardBg: _cardBg,
+          cardBorder: _cardBorder,
+          textPrimary: _textPrimary,
+          textSecondary: _textSecondary,
+          onNavigateToResume: () => setState(() => _activeNavIndex = 1),
         );
       case 3:
         return _buildSectionPlaceholder(

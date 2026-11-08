@@ -11,5 +11,9 @@ class ApiConstants {
   static const String resumeListEndpoint = "$baseUrl/resume/list";
   static String resumeFileEndpoint(String filename) => "$baseUrl/resume/file/$filename";
   static String resumeDeleteEndpoint(String filename) => "$baseUrl/resume/file/$filename";
+
+  // JD Matcher
+  static const String jdAnalyseEndpoint = "$baseUrl/jd-matcher/analyse";
 }
+
 
