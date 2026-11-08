@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:skillbridge_frontend/features/auth/data/datasources/auth_service.dart';
 import 'package:skillbridge_frontend/features/auth/data/models/user_model.dart';
 import 'package:skillbridge_frontend/features/auth/presentation/screens/auth_screen.dart';
+import 'package:skillbridge_frontend/features/resume/presentation/screens/resume_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -112,11 +113,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 0:
         return _buildOverviewContent();
       case 1:
-        return _buildSectionPlaceholder(
-          title: "Resume Builder & Parser",
-          subtitle: "Upload and analyze your resume to get real-time ATS scoring and suggestions.",
-          icon: Icons.description_outlined,
-          actionText: "Upload PDF Resume",
+        return ResumeScreen(
+          isDarkMode: _isDarkMode,
+          bg: _bg,
+          cardBg: _cardBg,
+          cardBorder: _cardBorder,
+          textPrimary: _textPrimary,
+          textSecondary: _textSecondary,
         );
       case 2:
         return _buildSectionPlaceholder(
