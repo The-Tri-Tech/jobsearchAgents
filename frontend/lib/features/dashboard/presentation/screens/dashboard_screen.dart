@@ -4,6 +4,7 @@ import 'package:skillbridge_frontend/features/auth/data/models/user_model.dart';
 import 'package:skillbridge_frontend/features/auth/presentation/screens/auth_screen.dart';
 import 'package:skillbridge_frontend/features/resume/presentation/screens/resume_screen.dart';
 import 'package:skillbridge_frontend/features/jd_matcher/presentation/screens/jd_matcher_screen.dart';
+import 'package:skillbridge_frontend/features/jd_evaluation/presentation/screens/jd_evaluation_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -23,6 +24,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     {"title": "Overview", "icon": Icons.grid_view_rounded},
     {"title": "Resume", "icon": Icons.description_outlined},
     {"title": "JD Matcher", "icon": Icons.search_rounded},
+    {"title": "JD Evaluation", "icon": Icons.verified_user_outlined},
     {"title": "Roadmap", "icon": Icons.timeline_rounded},
     {"title": "Quiz", "icon": Icons.help_outline_rounded},
     {"title": "Interview", "icon": Icons.chat_bubble_outline_rounded},
@@ -148,6 +150,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onFollowUpCreated: _refreshOverviewSilently,
         );
       case 3:
+        return JdEvaluationScreen(
+          isDarkMode: _isDarkMode,
+          bg: _bg,
+          cardBg: _cardBg,
+          cardBorder: _cardBorder,
+          textPrimary: _textPrimary,
+          textSecondary: _textSecondary,
+          onNavigateToResume: () => setState(() => _activeNavIndex = 1),
+        );
+      case 4:
         return _buildSectionPlaceholder(
           title: "Career Roadmap",
           subtitle:
@@ -155,15 +167,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           icon: Icons.timeline_rounded,
           actionText: "Generate Roadmap",
         );
-      case 4:
-        return _buildSectionPlaceholder(
-          title: "Adaptive Quizzes",
-          subtitle:
-              "Test and benchmark your core skills with AI-tailored technical quizzes.",
-          icon: Icons.help_outline_rounded,
-          actionText: "Start Adaptive Quiz",
-        );
       case 5:
+        return JdEvaluationScreen(
+          isDarkMode: _isDarkMode,
+          bg: _bg,
+          cardBg: _cardBg,
+          cardBorder: _cardBorder,
+          textPrimary: _textPrimary,
+          textSecondary: _textSecondary,
+          onNavigateToResume: () => setState(() => _activeNavIndex = 1),
+          screenTitle: 'Quiz',
+          screenSubtitle: 'Test your readiness for this role with a quick JD-based quiz',
+        );
+      case 6:
         return _buildSectionPlaceholder(
           title: "Mock Interviews",
           subtitle:
@@ -171,7 +187,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           icon: Icons.chat_bubble_outline_rounded,
           actionText: "Start Mock Interview",
         );
-      case 6:
+      case 7:
         return _buildSectionPlaceholder(
           title: "Jobs Explorer",
           subtitle:
@@ -601,12 +617,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         break;
       case "lightning":
         icon = Icons.bolt_rounded;
-        targetNavIndex = 4; // Quiz
+        targetNavIndex = 5; // Quiz
         break;
       case "briefcase":
       default:
         icon = Icons.work_outline_rounded;
-        targetNavIndex = 6; // Jobs
+        targetNavIndex = 7; // Jobs
         break;
     }
 

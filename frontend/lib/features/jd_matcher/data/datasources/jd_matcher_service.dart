@@ -38,10 +38,10 @@ class JdMatcherService {
             },
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 85));
+          .timeout(const Duration(seconds: 30));
     } on TimeoutException {
       throw Exception(
-          'The AI analysis took too long. Please retry or use a shorter job description.');
+          'Gemini did not respond within 30 seconds. Please try again.');
     }
 
     if (response.statusCode == 200) {

@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-3.8-flash"
     GEMINI_TIMEOUT_SECONDS: float = 180.0
-    JOB_MATCH_TIMEOUT_SECONDS: float = 75.0
+    JOB_MATCH_TIMEOUT_SECONDS: float = 25.0
 
     class Config:
         case_sensitive = True

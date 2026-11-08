@@ -129,7 +129,7 @@ def test_agent_times_out_and_closes_client(monkeypatch):
     monkeypatch.setattr("app.services.job_matching_agent.settings.JOB_MATCH_TIMEOUT_SECONDS", 0.01)
     monkeypatch.setattr("app.services.job_matching_agent.genai.Client", lambda **_: FakeClient())
 
-    with pytest.raises(JobMatchingError, match="took too long"):
+    with pytest.raises(JobMatchingError, match="did not respond"):
         asyncio.run(
             JobMatchingAgent().analyse(
                 resume_text="Python resume " * 10,

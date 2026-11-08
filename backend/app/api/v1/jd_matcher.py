@@ -7,6 +7,7 @@ from app.models.user import User
 from app.schemas.jd_matcher import AnalyseRequest, AnalysisReport
 from app.services.job_matching_agent import (
     JobMatchingError,
+    JobMatchingTimeoutError,
     fetch_job_description,
     job_matching_agent,
 )
@@ -54,8 +55,18 @@ async def analyse_jd(
             resume_filename=safe_filename,
             jd_source=jd_source,
         )
-    except (ResumeExtractionError, JobMatchingError) as exc:
+    except JobMatchingTimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=str(exc),
+        ) from exc
+    except ResumeExtractionError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except JobMatchingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc

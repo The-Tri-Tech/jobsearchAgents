@@ -28,6 +28,10 @@ class JobMatchingError(RuntimeError):
     pass
 
 
+class JobMatchingTimeoutError(JobMatchingError):
+    pass
+
+
 def _validate_public_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
@@ -200,8 +204,8 @@ JOB DESCRIPTION
             raise JobMatchingError(f"Gemini request failed: {exc.message}") from exc
         except TimeoutError as exc:
             logger.warning("Gemini analysis exceeded the application deadline")
-            raise JobMatchingError(
-                "The AI analysis took too long. Please retry; shorter pasted job descriptions usually complete faster."
+            raise JobMatchingTimeoutError(
+                "Gemini did not respond within 25 seconds. Please try again."
             ) from exc
         except (json.JSONDecodeError, ValueError) as exc:
             logger.exception("Gemini returned an invalid structured response")
@@ -211,7 +215,11 @@ JOB DESCRIPTION
             raise JobMatchingError("The AI analysis could not be completed. Please retry.") from exc
         finally:
             if client is not None:
-                await client.aio.aclose()
+                try:
+                    async with asyncio.timeout(2):
+                        await client.aio.aclose()
+                except TimeoutError:
+                    logger.warning("Timed out while closing the Gemini client")
 
         final_report = report.model_copy(
             update={"resume_used": resume_filename, "jd_source": jd_source}
