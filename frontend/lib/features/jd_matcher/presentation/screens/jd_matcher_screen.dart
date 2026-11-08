@@ -12,6 +12,7 @@ class JdMatcherScreen extends StatefulWidget {
   final Color textPrimary;
   final Color textSecondary;
   final VoidCallback? onNavigateToResume;
+  final VoidCallback? onFollowUpCreated;
 
   const JdMatcherScreen({
     super.key,
@@ -22,6 +23,7 @@ class JdMatcherScreen extends StatefulWidget {
     required this.textPrimary,
     required this.textSecondary,
     this.onNavigateToResume,
+    this.onFollowUpCreated,
   });
 
   @override
@@ -37,6 +39,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   // ── State ──────────────────────────────────────────────────────────────────
   List<ResumeModel> _resumes = [];
   bool _loadingResumes = true;
+  String? _selectedResumeFilename;
 
   // JD input
   int _jdInputMode = 0; // 0 = paste text, 1 = url
@@ -47,6 +50,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   bool _analysing = false;
   String? _errorMessage;
   AnalysisReportModel? _report;
+  bool _schedulingFollowUp = false;
+  bool _followUpEnabled = false;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
@@ -54,8 +59,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   @override
   void initState() {
     super.initState();
-    _fadeController =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    _fadeController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 400));
     _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
     _loadResumes();
   }
@@ -74,8 +79,13 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     setState(() => _loadingResumes = true);
     try {
       final list = await _resumeService.listResumes();
+      list.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
       setState(() {
         _resumes = list;
+        if (!list.any((resume) => resume.filename == _selectedResumeFilename)) {
+          _selectedResumeFilename =
+              list.isNotEmpty ? list.first.filename : null;
+        }
         _loadingResumes = false;
       });
     } catch (_) {
@@ -83,11 +93,16 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     }
   }
 
-  ResumeModel? get _latestResume =>
-      _resumes.isNotEmpty ? _resumes.last : null;
+  ResumeModel? get _selectedResume {
+    if (_selectedResumeFilename == null) return null;
+    for (final resume in _resumes) {
+      if (resume.filename == _selectedResumeFilename) return resume;
+    }
+    return null;
+  }
 
   Future<void> _analyse() async {
-    final resume = _latestResume;
+    final resume = _selectedResume;
     if (resume == null) return;
 
     final jdText = _jdTextController.text.trim();
@@ -98,7 +113,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       return;
     }
     if (_jdInputMode == 1 && jdUrl.isEmpty) {
-      setState(() => _errorMessage = 'Please enter a valid Job Description URL.');
+      setState(
+          () => _errorMessage = 'Please enter a valid Job Description URL.');
       return;
     }
 
@@ -106,6 +122,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       _analysing = true;
       _errorMessage = null;
       _report = null;
+      _followUpEnabled = false;
     });
 
     try {
@@ -131,8 +148,170 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     setState(() {
       _report = null;
       _errorMessage = null;
+      _followUpEnabled = false;
     });
     _fadeController.reset();
+  }
+
+  Future<void> _showFollowUpDialog(AnalysisReportModel report) async {
+    DateTime selectedDate = DateTime.now();
+    int selectedDays = 3;
+    final selection = await showDialog<_FollowUpSelection>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: widget.cardBg,
+          title: Text('Enable follow-up',
+              style: TextStyle(color: widget.textPrimary)),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Choose the application date and when you want to follow up.',
+                  style: TextStyle(fontSize: 13, color: widget.textSecondary),
+                ),
+                const SizedBox(height: 20),
+                Text('Application date',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textPrimary)),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => selectedDate = picked);
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                  label: Text(_formatDate(selectedDate)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: widget.textPrimary,
+                    side: BorderSide(color: widget.cardBorder),
+                    minimumSize: const Size(double.infinity, 46),
+                    alignment: Alignment.centerLeft,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text('Follow up after',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textPrimary)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  initialValue: selectedDays,
+                  dropdownColor: widget.cardBg,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: widget.cardBorder),
+                    ),
+                  ),
+                  style: TextStyle(color: widget.textPrimary),
+                  items: [1, 2, 3, 5, 7, 10, 14, 30]
+                      .map((days) => DropdownMenuItem(
+                            value: days,
+                            child: Text('$days ${days == 1 ? 'day' : 'days'}'),
+                          ))
+                      .toList(),
+                  onChanged: (days) =>
+                      setDialogState(() => selectedDays = days ?? 3),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Follow-up date: ${_formatDate(selectedDate.add(Duration(days: selectedDays)))}',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _accentGreen),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child:
+                  Text('Cancel', style: TextStyle(color: widget.textSecondary)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                _FollowUpSelection(selectedDate, selectedDays),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.textPrimary,
+                foregroundColor: widget.cardBg,
+              ),
+              child: const Text('Enable follow-up'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selection == null || !mounted) return;
+
+    setState(() => _schedulingFollowUp = true);
+    try {
+      await _matcherService.createFollowUp(
+        reportTitle: report.summaryTitle,
+        resumeFilename: report.resumeUsed,
+        applicationDate: selection.date,
+        followUpAfterDays: selection.days,
+      );
+      if (!mounted) return;
+      setState(() {
+        _schedulingFollowUp = false;
+        _followUpEnabled = true;
+      });
+      widget.onFollowUpCreated?.call();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Follow-up scheduled for ${_formatDate(selection.date.add(Duration(days: selection.days)))}.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _schedulingFollowUp = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: _accentRed,
+        ),
+      );
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   // ── Colours ────────────────────────────────────────────────────────────────
@@ -228,7 +407,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       );
     }
 
-    final resume = _latestResume;
+    final resume = _selectedResume;
     if (resume == null) {
       return _card(
         bgColor: const Color(0xFFFEF9C3),
@@ -271,43 +450,110 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     return _card(
       bgColor: const Color(0xFFF0FDF4),
       borderColor: const Color(0xFFBBF7D0),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: _accentGreen.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child:
-                Icon(Icons.description_rounded, color: _accentGreen, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Using latest resume',
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: _accentGreen,
-                      fontWeight: FontWeight.w600),
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _accentGreen.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  resume.filename,
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: widget.textPrimary),
+                child: Icon(Icons.description_rounded,
+                    color: _accentGreen, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Resume for this analysis',
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: widget.textPrimary,
+                          fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_resumes.length} resume${_resumes.length == 1 ? '' : 's'} available',
+                      style:
+                          TextStyle(fontSize: 12, color: widget.textSecondary),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Text(resume.displaySize,
-              style: TextStyle(fontSize: 12, color: widget.textSecondary)),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String>(
+            key: ValueKey(resume.filename),
+            initialValue: resume.filename,
+            isExpanded: true,
+            dropdownColor: widget.cardBg,
+            icon: Icon(Icons.keyboard_arrow_down_rounded,
+                color: widget.textSecondary),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: widget.cardBg,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: widget.cardBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: widget.cardBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: _accentGreen, width: 1.5),
+              ),
+            ),
+            selectedItemBuilder: (context) => _resumes
+                .map((item) => Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${item.filename}  ·  ${item.displaySize}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: widget.textPrimary),
+                      ),
+                    ))
+                .toList(),
+            items: _resumes
+                .map((item) => DropdownMenuItem<String>(
+                      value: item.filename,
+                      child: Text(
+                        '${item.filename}  ·  ${item.displaySize}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            TextStyle(fontSize: 14, color: widget.textPrimary),
+                      ),
+                    ))
+                .toList(),
+            onChanged: _analysing
+                ? null
+                : (filename) => setState(() {
+                      _selectedResumeFilename = filename;
+                      _errorMessage = null;
+                    }),
+          ),
+          if (_resumes.length > 1) ...[
+            const SizedBox(height: 8),
+            Text(
+              'The newest resume is selected initially. Choose another to compare it with this job.',
+              style: TextStyle(fontSize: 12, color: widget.textSecondary),
+            ),
+          ],
         ],
       ),
     );
@@ -333,8 +579,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
             TextField(
               controller: _jdTextController,
               maxLines: 10,
-              style:
-                  TextStyle(fontSize: 14, color: widget.textPrimary, height: 1.6),
+              style: TextStyle(
+                  fontSize: 14, color: widget.textPrimary, height: 1.6),
               decoration: InputDecoration(
                 hintText:
                     'Paste the full job description here…\n\nInclude requirements, responsibilities, and qualifications for best results.',
@@ -365,8 +611,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
               decoration: InputDecoration(
                 hintText: 'https://www.linkedin.com/jobs/view/…',
                 hintStyle: TextStyle(color: widget.textSecondary, fontSize: 13),
-                prefixIcon:
-                    Icon(Icons.link_rounded, color: widget.textSecondary, size: 20),
+                prefixIcon: Icon(Icons.link_rounded,
+                    color: widget.textSecondary, size: 20),
                 filled: true,
                 fillColor: widget.isDarkMode
                     ? const Color(0xFF0F172A)
@@ -411,9 +657,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: active
-                ? widget.cardBg
-                : widget.textSecondary,
+            color: active ? widget.cardBg : widget.textSecondary,
           ),
         ),
       ),
@@ -421,7 +665,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   }
 
   Widget _buildAnalyseButton() {
-    final hasResume = _latestResume != null;
+    final hasResume = _selectedResume != null;
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -431,7 +675,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           foregroundColor: widget.cardBg,
           disabledBackgroundColor: widget.textSecondary.withOpacity(0.3),
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 0,
         ),
         child: _analysing
@@ -479,8 +724,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           const SizedBox(width: 10),
           Expanded(
               child: Text(msg,
-                  style: const TextStyle(
-                      fontSize: 13, color: Color(0xFFB42318)))),
+                  style:
+                      const TextStyle(fontSize: 13, color: Color(0xFFB42318)))),
           GestureDetector(
             onTap: () => setState(() => _errorMessage = null),
             child: const Icon(Icons.close_rounded,
@@ -507,7 +752,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
               GestureDetector(
                 onTap: _resetToInput,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: _pillBg,
                     borderRadius: BorderRadius.circular(8),
@@ -533,6 +779,29 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: widget.textPrimary),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _schedulingFollowUp || _followUpEnabled
+                    ? null
+                    : () => _showFollowUpDialog(r),
+                icon: _schedulingFollowUp
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(_followUpEnabled
+                        ? Icons.check_circle_outline
+                        : Icons.notifications_active_outlined),
+                label:
+                    Text(_followUpEnabled ? 'Follow-up enabled' : 'Follow up'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.textPrimary,
+                  foregroundColor: widget.cardBg,
+                  disabledBackgroundColor: _accentGreen.withOpacity(0.12),
+                  disabledForegroundColor: _accentGreen,
+                  elevation: 0,
                 ),
               ),
             ],
@@ -572,7 +841,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
               onPressed: _resetToInput,
               icon: const Icon(Icons.refresh_rounded, size: 16),
               label: const Text('Analyse a different JD'),
-              style: TextButton.styleFrom(foregroundColor: widget.textSecondary),
+              style:
+                  TextButton.styleFrom(foregroundColor: widget.textSecondary),
             ),
           ),
         ],
@@ -662,8 +932,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                 const SizedBox(height: 4),
                 Text(
                   'Based on keyword match, skill overlap and profile alignment.',
-                  style:
-                      TextStyle(fontSize: 13, color: widget.textSecondary),
+                  style: TextStyle(fontSize: 13, color: widget.textSecondary),
                 ),
               ],
             ),
@@ -854,9 +1123,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                 child: Text(
                   p,
                   style: TextStyle(
-                      fontSize: 14,
-                      color: widget.textSecondary,
-                      height: 1.65),
+                      fontSize: 14, color: widget.textSecondary, height: 1.65),
                 ),
               )),
         ],
@@ -900,9 +1167,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
               child: Text(
                 '${role.matchScore}%',
                 style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: barColor),
+                    fontSize: 13, fontWeight: FontWeight.bold, color: barColor),
               ),
             ),
             const SizedBox(width: 16),
@@ -921,9 +1186,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                   Text(
                     role.reason,
                     style: TextStyle(
-                        fontSize: 13,
-                        color: widget.textSecondary,
-                        height: 1.5),
+                        fontSize: 13, color: widget.textSecondary, height: 1.5),
                   ),
                   const SizedBox(height: 8),
                   // Progress bar
@@ -953,8 +1216,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
         Container(
           width: 26,
           height: 26,
-          decoration: BoxDecoration(
-              color: widget.textPrimary, shape: BoxShape.circle),
+          decoration:
+              BoxDecoration(color: widget.textPrimary, shape: BoxShape.circle),
           alignment: Alignment.center,
           child: Text(number,
               style: TextStyle(
@@ -988,4 +1251,11 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       child: child,
     );
   }
+}
+
+class _FollowUpSelection {
+  final DateTime date;
+  final int days;
+
+  const _FollowUpSelection(this.date, this.days);
 }

@@ -24,12 +24,12 @@ class UserModel {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'email': email,
-    'full_name': fullName,
-    'plan': plan,
-    'avatar_letter': avatarLetter,
-  };
+        'id': id,
+        'email': email,
+        'full_name': fullName,
+        'plan': plan,
+        'avatar_letter': avatarLetter,
+      };
 }
 
 class StatCardModel {
@@ -89,6 +89,36 @@ class TaskItemModel {
   }
 }
 
+class FollowUpModel {
+  final int id;
+  final String reportTitle;
+  final String resumeFilename;
+  final DateTime applicationDate;
+  final int followUpAfterDays;
+  final DateTime followUpDate;
+  final String status;
+
+  FollowUpModel({
+    required this.id,
+    required this.reportTitle,
+    required this.resumeFilename,
+    required this.applicationDate,
+    required this.followUpAfterDays,
+    required this.followUpDate,
+    required this.status,
+  });
+
+  factory FollowUpModel.fromJson(Map<String, dynamic> json) => FollowUpModel(
+        id: json['id'] ?? 0,
+        reportTitle: json['report_title'] ?? 'Job match follow-up',
+        resumeFilename: json['resume_filename'] ?? '',
+        applicationDate: DateTime.parse(json['application_date']),
+        followUpAfterDays: json['follow_up_after_days'] ?? 0,
+        followUpDate: DateTime.parse(json['follow_up_date']),
+        status: json['status'] ?? 'pending',
+      );
+}
+
 class DashboardOverviewModel {
   final String greeting;
   final String subtitle;
@@ -96,6 +126,7 @@ class DashboardOverviewModel {
   final List<StatCardModel> metrics;
   final List<ProgressItemModel> weeklyProgress;
   final List<TaskItemModel> todayTasks;
+  final List<FollowUpModel> followUps;
 
   DashboardOverviewModel({
     required this.greeting,
@@ -104,6 +135,7 @@ class DashboardOverviewModel {
     required this.metrics,
     required this.weeklyProgress,
     required this.todayTasks,
+    required this.followUps,
   });
 
   factory DashboardOverviewModel.fromJson(Map<String, dynamic> json) {
@@ -120,7 +152,9 @@ class DashboardOverviewModel {
       todayTasks: (json['today_tasks'] as List? ?? [])
           .map((t) => TaskItemModel.fromJson(t))
           .toList(),
+      followUps: (json['follow_ups'] as List? ?? [])
+          .map((f) => FollowUpModel.fromJson(f))
+          .toList(),
     );
   }
 }
-

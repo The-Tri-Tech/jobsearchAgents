@@ -30,12 +30,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ];
 
   // Dynamic Theme Colors
-  Color get _bg => _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF9FAFB);
+  Color get _bg =>
+      _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF9FAFB);
   Color get _cardBg => _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
-  Color get _cardBorder => _isDarkMode ? const Color(0xFF334155) : const Color(0xFFEAECF0);
-  Color get _textPrimary => _isDarkMode ? const Color(0xFFF8FAFC) : const Color(0xFF101828);
-  Color get _textSecondary => _isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF667085);
-  Color get _activePill => _isDarkMode ? const Color(0xFF334155) : const Color(0xFFF2F4F7);
+  Color get _cardBorder =>
+      _isDarkMode ? const Color(0xFF334155) : const Color(0xFFEAECF0);
+  Color get _textPrimary =>
+      _isDarkMode ? const Color(0xFFF8FAFC) : const Color(0xFF101828);
+  Color get _textSecondary =>
+      _isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF667085);
+  Color get _activePill =>
+      _isDarkMode ? const Color(0xFF334155) : const Color(0xFFF2F4F7);
 
   @override
   void initState() {
@@ -53,6 +58,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     } catch (_) {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _refreshOverviewSilently() async {
+    try {
+      final data = await _authService.fetchDashboardOverview();
+      if (mounted) setState(() => _overview = data);
+    } catch (_) {
+      // Keep the last dashboard state if a background refresh fails.
     }
   }
 
@@ -131,32 +145,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
           textPrimary: _textPrimary,
           textSecondary: _textSecondary,
           onNavigateToResume: () => setState(() => _activeNavIndex = 1),
+          onFollowUpCreated: _refreshOverviewSilently,
         );
       case 3:
         return _buildSectionPlaceholder(
           title: "Career Roadmap",
-          subtitle: "Your step-by-step personalized learning path based on targeted job roles.",
+          subtitle:
+              "Your step-by-step personalized learning path based on targeted job roles.",
           icon: Icons.timeline_rounded,
           actionText: "Generate Roadmap",
         );
       case 4:
         return _buildSectionPlaceholder(
           title: "Adaptive Quizzes",
-          subtitle: "Test and benchmark your core skills with AI-tailored technical quizzes.",
+          subtitle:
+              "Test and benchmark your core skills with AI-tailored technical quizzes.",
           icon: Icons.help_outline_rounded,
           actionText: "Start Adaptive Quiz",
         );
       case 5:
         return _buildSectionPlaceholder(
           title: "Mock Interviews",
-          subtitle: "Practice realistic technical and behavioral interviews with instant AI feedback.",
+          subtitle:
+              "Practice realistic technical and behavioral interviews with instant AI feedback.",
           icon: Icons.chat_bubble_outline_rounded,
           actionText: "Start Mock Interview",
         );
       case 6:
         return _buildSectionPlaceholder(
           title: "Jobs Explorer",
-          subtitle: "Explore curated job listings tailored to your resume score and match rate.",
+          subtitle:
+              "Explore curated job listings tailored to your resume score and match rate.",
           icon: Icons.work_outline_rounded,
           actionText: "Search Job Openings",
         );
@@ -177,6 +196,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildMetricCardsRow(),
           const SizedBox(height: 28),
           _buildBottomSection(),
+          if ((_overview?.followUps ?? []).isNotEmpty) ...[
+            const SizedBox(height: 28),
+            _buildFollowUpsCard(),
+          ],
           const SizedBox(height: 40),
         ],
       ),
@@ -256,10 +279,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: InkWell(
                     onTap: () {
                       setState(() => _activeNavIndex = index);
+                      if (index == 0) _refreshOverviewSilently();
                     },
                     borderRadius: BorderRadius.circular(10),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: isActive ? _activePill : Colors.transparent,
                         borderRadius: BorderRadius.circular(10),
@@ -276,7 +301,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             item['title'] as String,
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                              fontWeight:
+                                  isActive ? FontWeight.w600 : FontWeight.w500,
                               color: isActive ? _textPrimary : _textSecondary,
                             ),
                           ),
@@ -295,7 +321,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFFAFAFA),
+                color: _isDarkMode
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFFFAFAFA),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _cardBorder),
               ),
@@ -303,7 +331,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   CircleAvatar(
                     radius: 17,
-                    backgroundColor: _isDarkMode ? const Color(0xFF334155) : const Color(0xFF101828),
+                    backgroundColor: _isDarkMode
+                        ? const Color(0xFF334155)
+                        : const Color(0xFF101828),
                     child: Text(
                       user?.avatarLetter ?? "A",
                       style: const TextStyle(
@@ -339,7 +369,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   PopupMenuButton<String>(
-                    icon: Icon(Icons.more_vert, size: 18, color: _textSecondary),
+                    icon:
+                        Icon(Icons.more_vert, size: 18, color: _textSecondary),
                     color: _cardBg,
                     onSelected: (val) {
                       if (val == "logout") _handleLogout();
@@ -349,9 +380,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         value: "logout",
                         child: Row(
                           children: [
-                            Icon(Icons.logout, size: 16, color: Color(0xFFD92D20)),
+                            Icon(Icons.logout,
+                                size: 16, color: Color(0xFFD92D20)),
                             SizedBox(width: 8),
-                            Text("Log Out", style: TextStyle(color: Color(0xFFD92D20), fontSize: 13)),
+                            Text("Log Out",
+                                style: TextStyle(
+                                    color: Color(0xFFD92D20), fontSize: 13)),
                           ],
                         ),
                       ),
@@ -405,7 +439,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               height: 38,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF9FAFB),
+                color: _isDarkMode
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFFF9FAFB),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: _cardBorder),
               ),
@@ -418,7 +454,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: TextStyle(color: _textPrimary, fontSize: 13),
                       decoration: InputDecoration(
                         hintText: "Search anything...",
-                        hintStyle: TextStyle(color: _textSecondary, fontSize: 13),
+                        hintStyle:
+                            TextStyle(color: _textSecondary, fontSize: 13),
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
@@ -445,7 +482,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Stack(
             children: [
               IconButton(
-                icon: Icon(Icons.notifications_none_rounded, size: 21, color: _textSecondary),
+                icon: Icon(Icons.notifications_none_rounded,
+                    size: 21, color: _textSecondary),
                 onPressed: () {},
               ),
               Positioned(
@@ -467,10 +505,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // User avatar
           CircleAvatar(
             radius: 16,
-            backgroundColor: _isDarkMode ? const Color(0xFF334155) : const Color(0xFF101828),
+            backgroundColor:
+                _isDarkMode ? const Color(0xFF334155) : const Color(0xFF101828),
             child: Text(
               user?.avatarLetter ?? "A",
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12),
             ),
           ),
         ],
@@ -534,7 +576,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final m = entry.value;
             return Expanded(
               child: Padding(
-                padding: EdgeInsets.only(right: idx == metrics.length - 1 ? 0 : 16),
+                padding:
+                    EdgeInsets.only(right: idx == metrics.length - 1 ? 0 : 16),
                 child: _buildMetricCard(m, idx),
               ),
             );
@@ -592,11 +635,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: _isDarkMode ? const Color(0xFF334155) : const Color(0xFFF2F4F7),
+                  color: _isDarkMode
+                      ? const Color(0xFF334155)
+                      : const Color(0xFFF2F4F7),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
-                  child: Icon(icon, size: 18, color: _isDarkMode ? Colors.white : const Color(0xFF475467)),
+                  child: Icon(icon,
+                      size: 18,
+                      color:
+                          _isDarkMode ? Colors.white : const Color(0xFF475467)),
                 ),
               ),
               OutlinedButton(
@@ -606,7 +654,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -773,7 +822,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Row(
                     children: [
                       Icon(
-                        task.completed ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                        task.completed
+                            ? Icons.check_circle_rounded
+                            : Icons.radio_button_unchecked_rounded,
                         size: 18,
                         color: task.completed ? _textPrimary : _textSecondary,
                       ),
@@ -784,8 +835,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w400,
-                            color: task.completed ? _textSecondary : _textPrimary,
-                            decoration: task.completed ? TextDecoration.lineThrough : null,
+                            color:
+                                task.completed ? _textSecondary : _textPrimary,
+                            decoration: task.completed
+                                ? TextDecoration.lineThrough
+                                : null,
                           ),
                         ),
                       ),
@@ -798,6 +852,145 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildFollowUpsCard() {
+    final followUps = _overview?.followUps ?? [];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.notifications_active_outlined,
+                  size: 20, color: _textPrimary),
+              const SizedBox(width: 10),
+              Text(
+                'Upcoming Follow-ups',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _textPrimary),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _activePill,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text('${followUps.length}',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _textPrimary)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          ...followUps.asMap().entries.map((entry) {
+            final followUp = entry.value;
+            final today = DateUtils.dateOnly(DateTime.now());
+            final dueDate = DateUtils.dateOnly(followUp.followUpDate);
+            final daysUntil = dueDate.difference(today).inDays;
+            final dueLabel = daysUntil < 0
+                ? 'Overdue by ${-daysUntil} ${-daysUntil == 1 ? 'day' : 'days'}'
+                : daysUntil == 0
+                    ? 'Due today'
+                    : 'Due in $daysUntil ${daysUntil == 1 ? 'day' : 'days'}';
+            final dueColor = daysUntil <= 0
+                ? const Color(0xFFD92D20)
+                : const Color(0xFF16A34A);
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: dueColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.event_available_outlined,
+                            size: 20, color: dueColor),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(followUp.reportTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: _textPrimary)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${followUp.resumeFilename} · ${_formatDashboardDate(followUp.followUpDate)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 12, color: _textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: dueColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(dueLabel,
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: dueColor)),
+                      ),
+                    ],
+                  ),
+                ),
+                if (entry.key < followUps.length - 1)
+                  Divider(height: 1, color: _cardBorder),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  String _formatDashboardDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   // --- Sub-section placeholder view ---
@@ -824,7 +1017,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: _isDarkMode ? const Color(0xFF334155) : const Color(0xFFF2F4F7),
+                color: _isDarkMode
+                    ? const Color(0xFF334155)
+                    : const Color(0xFFF2F4F7),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(icon, size: 28, color: _textPrimary),
@@ -853,15 +1048,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _textPrimary,
                 foregroundColor: _cardBg,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
-              child: Text(actionText, style: const TextStyle(fontWeight: FontWeight.w600)),
+              child: Text(actionText,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
             const SizedBox(height: 12),
             TextButton(
               onPressed: () => setState(() => _activeNavIndex = 0),
-              child: Text("← Back to Overview", style: TextStyle(color: _textSecondary)),
+              child: Text("← Back to Overview",
+                  style: TextStyle(color: _textSecondary)),
             ),
           ],
         ),

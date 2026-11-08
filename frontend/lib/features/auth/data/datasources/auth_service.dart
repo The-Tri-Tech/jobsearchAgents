@@ -79,7 +79,8 @@ class AuthService {
       return UserModel.fromJson(data['user']);
     } else {
       final error = jsonDecode(response.body);
-      throw Exception(error['detail'] ?? 'Login failed. Please check credentials.');
+      throw Exception(
+          error['detail'] ?? 'Login failed. Please check credentials.');
     }
   }
 
@@ -87,7 +88,7 @@ class AuthService {
   Future<DashboardOverviewModel> fetchDashboardOverview() async {
     final token = await getToken();
     final url = Uri.parse(ApiConstants.dashboardOverviewEndpoint);
-    
+
     final response = await http.get(
       url,
       headers: {
@@ -103,18 +104,41 @@ class AuthService {
       // Return default placeholder overview if token expired or network error
       return DashboardOverviewModel(
         greeting: "Good morning, Student ✦",
-        subtitle: "This view updates from your real resume, JD, roadmap, quiz, interview, and jobs activity.",
-        user: UserModel(id: 1, email: "student@skillbridge.ai", fullName: "Student", plan: "Pro plan", avatarLetter: "A"),
+        subtitle:
+            "This view updates from your real resume, JD, roadmap, quiz, interview, and jobs activity.",
+        user: UserModel(
+            id: 1,
+            email: "student@skillbridge.ai",
+            fullName: "Student",
+            plan: "Pro plan",
+            avatarLetter: "A"),
         metrics: [
-          StatCardModel(title: "ATS Score", value: "--", actionLabel: "Upload resume to start", iconType: "person"),
-          StatCardModel(title: "JD Match", value: "--", actionLabel: "Analyze a JD", iconType: "target"),
-          StatCardModel(title: "Quiz Score", value: "--", actionLabel: "Complete a quiz", iconType: "lightning"),
-          StatCardModel(title: "Jobs Saved", value: "0", actionLabel: "Search jobs to populate", iconType: "briefcase"),
+          StatCardModel(
+              title: "ATS Score",
+              value: "--",
+              actionLabel: "Upload resume to start",
+              iconType: "person"),
+          StatCardModel(
+              title: "JD Match",
+              value: "--",
+              actionLabel: "Analyze a JD",
+              iconType: "target"),
+          StatCardModel(
+              title: "Quiz Score",
+              value: "--",
+              actionLabel: "Complete a quiz",
+              iconType: "lightning"),
+          StatCardModel(
+              title: "Jobs Saved",
+              value: "0",
+              actionLabel: "Search jobs to populate",
+              iconType: "briefcase"),
         ],
         weeklyProgress: [
           ProgressItemModel(label: "Resume strength", status: "No data"),
           ProgressItemModel(label: "JD match rate", status: "No data"),
-          ProgressItemModel(label: "Roadmap completion", status: "No roadmap yet"),
+          ProgressItemModel(
+              label: "Roadmap completion", status: "No roadmap yet"),
           ProgressItemModel(label: "Interview score", status: "Not completed"),
         ],
         todayTasks: [
@@ -126,8 +150,8 @@ class AuthService {
           TaskItemModel(id: 6, title: "Complete mock interview"),
           TaskItemModel(id: 7, title: "Save at least one job"),
         ],
+        followUps: [],
       );
     }
   }
 }
-

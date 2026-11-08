@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import engine, Base
-from app.models import user  # ensure model is registered
+from app.models import follow_up, user  # ensure models are registered
 from app.api.v1.router import api_router
 
 logging.basicConfig(level=logging.INFO)
@@ -46,4 +46,3 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
-

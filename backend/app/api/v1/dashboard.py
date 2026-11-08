@@ -1,4 +1,7 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.db.session import get_db
+from app.models.follow_up import FollowUp
 from app.models.user import User
 from app.schemas.user import (
     DashboardOverview,
@@ -12,7 +15,10 @@ from app.api.v1.auth import get_current_user
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/overview", response_model=DashboardOverview)
-def get_dashboard_overview(current_user: User = Depends(get_current_user)):
+def get_dashboard_overview(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     user_out = UserOut.model_validate(current_user)
     first_name = current_user.full_name.split()[0] if current_user.full_name else "Student"
 
@@ -60,6 +66,13 @@ def get_dashboard_overview(current_user: User = Depends(get_current_user)):
         TaskItem(id=7, title="Save at least one job", completed=False),
     ]
 
+    follow_ups = (
+        db.query(FollowUp)
+        .filter(FollowUp.user_id == current_user.id, FollowUp.status == "pending")
+        .order_by(FollowUp.follow_up_date.asc())
+        .all()
+    )
+
     return DashboardOverview(
         greeting=f"Good morning, {first_name} ✦",
         subtitle="This view updates from your real resume, JD, roadmap, quiz, interview, and jobs activity.",
@@ -67,5 +80,5 @@ def get_dashboard_overview(current_user: User = Depends(get_current_user)):
         metrics=metrics,
         weekly_progress=weekly_progress,
         today_tasks=today_tasks,
+        follow_ups=follow_ups,
     )
-

@@ -1,8 +1,9 @@
 import os
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Literal, Optional
 
 class Settings(BaseSettings):
+    APP_ENV: Literal["development", "test", "production"] = "development"
     PROJECT_NAME: str = "SkillBridge API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
@@ -18,10 +19,15 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
+    # Gemini job-matching agent
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-3.8-flash"
+    GEMINI_TIMEOUT_SECONDS: float = 180.0
+    JOB_MATCH_TIMEOUT_SECONDS: float = 75.0
+
     class Config:
         case_sensitive = True
         env_file = ".env"
         extra = "allow"
 
 settings = Settings()
-

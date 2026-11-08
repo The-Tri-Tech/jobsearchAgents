@@ -15,6 +15,14 @@ SkillBridge is an AI Career operating system featuring a **Flutter** frontend, *
 ## 🚀 How to Run
 
 ### 1. Run the Backend (FastAPI)
+Copy `backend/.env.example` to `backend/.env` and set `GEMINI_API_KEY` to a
+Gemini API key from Google AI Studio. The JD Matcher uses this key to generate
+real, structured resume-to-job analysis.
+
+Set `APP_ENV=development` to return deterministic mock JD analysis without
+calling Gemini. Use `APP_ENV=test` for automated tests and `APP_ENV=production`
+to enable real Gemini analysis.
+
 In a terminal, navigate to the `backend` directory:
 ```powershell
 cd backend
@@ -49,4 +57,3 @@ flutter run -d windows
   - Password: `password123`
 - You can also switch the tab to **Sign Up** to register a new account with your name, email, and password.
 - Upon login, you are automatically redirected to the **SkillBridge Overview Dashboard** with all metric cards, progress tracking, and tasks.
-

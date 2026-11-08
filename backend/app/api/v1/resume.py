@@ -22,9 +22,9 @@ MAX_FILE_SIZE_MB = 10
 
 
 def _safe_filename(name: str) -> str:
-    """Sanitise filename: keep alphanumeric, dash, underscore, dot."""
+    """Sanitise filename, including parentheses used by duplicate uploads."""
     name = name.strip()
-    name = re.sub(r"[^\w.\-]", "_", name)
+    name = re.sub(r"[^\w.()\-]", "_", name)
     return name
 
 
