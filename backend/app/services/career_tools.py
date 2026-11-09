@@ -287,3 +287,19 @@ CAREER_TOOLS_SCHEMA = [
     },
 ]
 
+
+def get_gemini_career_tools():
+    """Builds Gemini FunctionDeclarations wrapped in a Tool instance."""
+    from google.genai import types as gemini_types
+
+    declarations = [
+        gemini_types.FunctionDeclaration(
+            name=f["function"]["name"],
+            description=f["function"]["description"],
+            parameters=f["function"]["parameters"],
+        )
+        for f in CAREER_TOOLS_SCHEMA
+    ]
+    return [gemini_types.Tool(function_declarations=declarations)]
+
+

@@ -180,3 +180,18 @@ def test_get_today_applied_jobs(db_session):
     tool_res = execute_career_tool("get_today_applied_jobs", {}, db_session, user_id=1)
     assert tool_res["count"] == 2
 
+
+def test_gemini_career_tools_schema():
+    from app.services.career_tools import get_gemini_career_tools
+
+    tools = get_gemini_career_tools()
+    assert len(tools) == 1
+    assert len(tools[0].function_declarations) == 5
+    names = [d.name for d in tools[0].function_declarations]
+    assert "get_today_applied_jobs" in names
+    assert "get_today_follow_ups" in names
+    assert "get_all_follow_ups" in names
+    assert "get_high_match_jobs" in names
+    assert "get_overall_standing" in names
+
+

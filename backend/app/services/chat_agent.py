@@ -12,11 +12,7 @@ from app.schemas.chat import ChatMessageItem
 from app.services.career_tools import (
     CAREER_TOOLS_SCHEMA,
     execute_career_tool,
-    get_all_follow_ups,
-    get_high_match_jobs,
-    get_overall_standing,
-    get_today_applied_jobs,
-    get_today_follow_ups,
+    get_gemini_career_tools,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,7 +86,7 @@ class ChatAgent:
         if guardrail_refusal:
             return guardrail_refusal
 
-        # 2. System Instructions
+        # 2. System Instructions with LLM Tool Calling Directive
         system_instruction = (
             "You are SkillBridge's AI Career Assistant, a supportive, knowledgeable mentor for job seekers.\n\n"
             "STRICT GUARDRAILS & SCOPE OF ASSISTANCE:\n"
@@ -99,47 +95,22 @@ class ChatAgent:
             "2. If the user asks about ANY topic outside of jobs, careers, or their profile (for example: cooking, movie trivia, "
             "politics, sports, general entertainment, creative writing, or non-career general knowledge), politely and firmly refuse to answer. "
             "Explain that you are exclusively focused on helping them with their career and job search, and guide them back to asking about their applications or career goals.\n\n"
+            "LIVE DATABASE TOOLS & APPLICATION TRACKING:\n"
+            "You have direct access to database tools for retrieving the user's real-time job applications, scheduled follow-ups, match scores, and overall standing. "
+            "Whenever the user asks about their applied jobs, follow-up reminders, match scores, or career stats, DO NOT hallucinate or guess numbers. "
+            "Instead, ALWAYS invoke the appropriate tool to fetch verified records from the database, then answer the question accurately using the tool's returned output.\n\n"
             "FOLLOW-UP & APPLICATION RULES:\n"
-            "- When the user asks how many jobs they applied to today (or asks for jobs applied today), state the total count clearly and list the specific role titles and details based on the verified applied jobs database tool.\n"
-            "- When the user asks for a list of job follow-ups or mentions follow-ups without specifying 'today', provide the full list of all scheduled job follow-ups across all dates, including company/role title, application date, and follow-up date.\n"
-            "- If the user specifically mentions 'today' for follow-ups (e.g., 'today how many jobs i need to follow up?' or 'what are my follow ups today?'), focus strictly on jobs due for follow-up today (or overdue).\n\n"
+            "- When the user asks how many jobs they applied to today (or asks for jobs applied today), call 'get_today_applied_jobs', state the total count clearly, and list the role titles and details.\n"
+            "- When the user asks for follow-ups due today (e.g., 'today how many jobs i need to follow up?' or 'what are my follow ups today?'), call 'get_today_follow_ups'.\n"
+            "- When the user asks for a general list of follow-ups across all dates without specifying 'today', call 'get_all_follow_ups'.\n"
+            "- When the user asks for high match jobs (e.g. >50%), call 'get_high_match_jobs'.\n"
+            "- When the user asks for overall standing, performance, or average score, call 'get_overall_standing'.\n\n"
             "STYLE:\n"
             "Keep responses concise, structured (using bullet points or Markdown tables where helpful), candid, and actionable. Do not provide overly long walls of text."
         )
 
         if resume_context:
             system_instruction += f"\n\nCandidate's resume context:\n{resume_context[:6000]}"
-
-        # 3. Grounding with Tool Context (Deterministic Intent Dispatch)
-        tool_context_str = ""
-        if db is not None and user_id is not None:
-            lower = message.lower()
-            if any(k in lower for k in ["follow up", "follow-up", "followup", "need to follow"]):
-                if "today" in lower:
-                    data = get_today_follow_ups(db, user_id)
-                    tool_context_str += f"\n[DATABASE TOOL RESULT - Today's Follow-Ups: {json.dumps(data)}]"
-                else:
-                    data = get_all_follow_ups(db, user_id)
-                    tool_context_str += f"\n[DATABASE TOOL RESULT - All Scheduled Job Follow-Ups: {json.dumps(data)}]"
-
-            if any(k in lower for k in ["greater than 50", "> 50", "score greater", "suit me score", "suit me", "above 50"]):
-                data = get_high_match_jobs(db, user_id, min_score=50)
-                tool_context_str += f"\n[DATABASE TOOL RESULT - Jobs with Match Score > 50%: {json.dumps(data)}]"
-
-            if any(k in lower for k in ["how am i doing", "how i am doing", "overall", "average score", "avg of all scores", "overall standing"]):
-                data = get_overall_standing(db, user_id)
-                tool_context_str += f"\n[DATABASE TOOL RESULT - Overall Career Standing & Averages: {json.dumps(data)}]"
-
-            if any(k in lower for k in ["applied today", "have applied today", "did i apply today", "jobs i applied", "applications today", "how many jobs i have applied", "how many jobs did i apply", "applied"]):
-                if not any(f in lower for f in ["follow up", "follow-up", "followup"]) or "applied" in lower:
-                    data = get_today_applied_jobs(db, user_id)
-                    tool_context_str += f"\n[DATABASE TOOL RESULT - Jobs Applied Today: {json.dumps(data)}]"
-
-        if tool_context_str:
-            system_instruction += (
-                f"\n\nLIVE DATABASE CONTEXT (Verified user data from backend MCP tools):\n{tool_context_str}\n"
-                "Use this exact data to answer the user's question accurately without guessing or hallucinating numbers."
-            )
 
         if settings.LLM_PROVIDER == "groq" and settings.GROQ_API_KEY:
             return await self._chat_groq(
@@ -154,6 +125,8 @@ class ChatAgent:
                 message=message,
                 history=history,
                 system_instruction=system_instruction,
+                db=db,
+                user_id=user_id,
             )
         else:
             return (
@@ -182,35 +155,36 @@ class ChatAgent:
                 messages.append({"role": role, "content": item.content})
             messages.append({"role": "user", "content": message})
 
-            # Call Groq with career tools enabled
+            tools_param = CAREER_TOOLS_SCHEMA if (db is not None and user_id is not None) else None
+            tool_choice = "auto" if tools_param else None
+
             response = await client.chat.completions.create(
                 model=settings.GROQ_MODEL,
                 messages=messages,
-                tools=CAREER_TOOLS_SCHEMA,
-                tool_choice="auto",
+                tools=tools_param,
+                tool_choice=tool_choice,
                 temperature=0.4,
                 max_tokens=1024,
             )
 
             choice = response.choices[0]
             if choice.message.tool_calls and db is not None and user_id is not None:
-                # Execute tool call and continue
-                tool_call = choice.message.tool_calls[0]
-                tool_name = tool_call.function.name
-                try:
-                    tool_args = json.loads(tool_call.function.arguments or "{}")
-                except Exception:
-                    tool_args = {}
-
-                tool_result = execute_career_tool(tool_name, tool_args, db, user_id)
                 messages.append(choice.message)
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": json.dumps(tool_result),
-                })
+                for tool_call in choice.message.tool_calls:
+                    tool_name = tool_call.function.name
+                    try:
+                        tool_args = json.loads(tool_call.function.arguments or "{}")
+                    except Exception:
+                        tool_args = {}
 
-                # Follow-up completion with tool output
+                    logger.info("Groq LLM invoked tool: %s with args: %s", tool_name, tool_args)
+                    tool_result = execute_career_tool(tool_name, tool_args, db, user_id)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(tool_result),
+                    })
+
                 second_response = await client.chat.completions.create(
                     model=settings.GROQ_MODEL,
                     messages=messages,
@@ -239,6 +213,8 @@ class ChatAgent:
         message: str,
         history: list[ChatMessageItem],
         system_instruction: str,
+        db: Session | None = None,
+        user_id: int | None = None,
     ) -> str:
         client = None
         try:
@@ -264,10 +240,13 @@ class ChatAgent:
                 )
             )
 
+            tools = get_gemini_career_tools() if (db is not None and user_id is not None) else None
+
             config = gemini_types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 temperature=0.4,
                 max_output_tokens=1024,
+                tools=tools,
             )
 
             delays = [2, 4, 8]
@@ -290,6 +269,32 @@ class ChatAgent:
                         attempt + 2,
                     )
                     await asyncio.sleep(delay)
+
+            # Handle Gemini tool/function calling
+            if response.function_calls and db is not None and user_id is not None:
+                if response.candidates and response.candidates[0].content:
+                    contents.append(response.candidates[0].content)
+
+                parts = []
+                for call in response.function_calls:
+                    tool_args = dict(call.args or {})
+                    logger.info("Gemini LLM invoked tool: %s with args: %s", call.name, tool_args)
+                    tool_result = execute_career_tool(call.name, tool_args, db, user_id)
+                    parts.append(
+                        gemini_types.Part.from_function_response(
+                            name=call.name,
+                            response={"result": tool_result},
+                        )
+                    )
+
+                contents.append(gemini_types.Content(role="tool", parts=parts))
+
+                second_response = await client.aio.models.generate_content(
+                    model=settings.GEMINI_MODEL,
+                    contents=contents,
+                    config=config,
+                )
+                return (second_response.text or "").strip() or "I have processed your query."
 
             return (response.text or "").strip() or "I couldn't generate a response. Please try rephrasing."
         except Exception as exc:
