@@ -21,7 +21,11 @@ real, structured resume-to-job analysis.
 
 Set `APP_ENV=development` to return deterministic mock JD analysis without
 calling Gemini. Use `APP_ENV=test` for automated tests and `APP_ENV=production`
-to enable real Gemini analysis.
+to enable real analysis through the configured LLM provider.
+
+In production, select the model provider with `LLM_PROVIDER=openai` or
+`LLM_PROVIDER=gemini`. For OpenAI, set `OPENAI_API_KEY` and `OPENAI_MODEL`;
+for Gemini, set `GEMINI_API_KEY` and `GEMINI_MODEL`.
 
 In a terminal, navigate to the `backend` directory:
 ```powershell

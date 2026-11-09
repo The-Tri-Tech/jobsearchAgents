@@ -20,10 +20,16 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
     # Gemini job-matching agent
+    LLM_PROVIDER: Literal["gemini", "openai"] = "gemini"
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-3.8-flash"
     GEMINI_TIMEOUT_SECONDS: float = 180.0
     JOB_MATCH_TIMEOUT_SECONDS: float = 25.0
+
+    # OpenAI job-matching agent
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_MODEL: str = "gpt-5.5"
+    OPENAI_TIMEOUT_SECONDS: float = 25.0
 
     class Config:
         case_sensitive = True

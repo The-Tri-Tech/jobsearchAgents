@@ -10,11 +10,19 @@ from app.schemas.jd_matcher import AnalyseRequest, AnalysisReport
 from app.services.job_matching_agent import (
     JobMatchingAgent,
     JobMatchingError,
+    OpenAIJobMatchingAgent,
     _html_to_text,
     _validate_public_url,
     _analysis_cache,
 )
 from app.services.resume_text import ResumeExtractionError, extract_resume_text
+
+
+@pytest.fixture(autouse=True)
+def use_gemini_provider_for_existing_agent_tests(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.job_matching_agent.settings.LLM_PROVIDER", "gemini"
+    )
 
 
 def _report() -> AnalysisReport:
@@ -186,6 +194,45 @@ def test_agent_retries_transient_failure_and_caches_success(monkeypatch):
 
     assert first.overall_score == second.overall_score == 72
     assert calls == 2  # one failed attempt + one success; cached call uses no API
+
+
+def test_openai_agent_uses_structured_responses_and_cache(monkeypatch):
+    calls = 0
+    closed = False
+
+    class FakeResponses:
+        async def parse(self, **kwargs):
+            nonlocal calls
+            calls += 1
+            assert kwargs["model"] == "openai-test"
+            assert kwargs["text_format"].__name__ == "_OpenAIAnalysisReport"
+            return type("Response", (), {"output_parsed": _report()})()
+
+    class FakeClient:
+        responses = FakeResponses()
+
+        async def close(self):
+            nonlocal closed
+            closed = True
+
+    _analysis_cache.clear()
+    monkeypatch.setattr("app.services.job_matching_agent.settings.OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr("app.services.job_matching_agent.settings.OPENAI_MODEL", "openai-test")
+    monkeypatch.setattr("app.services.job_matching_agent.AsyncOpenAI", lambda **_: FakeClient())
+    agent = OpenAIJobMatchingAgent()
+    arguments = {
+        "resume_text": "OpenAI resume " * 10,
+        "job_description": "OpenAI job " * 10,
+        "resume_filename": "openai.pdf",
+        "jd_source": "text",
+    }
+
+    first = asyncio.run(agent.analyse(**arguments))
+    second = asyncio.run(agent.analyse(**arguments))
+
+    assert first.overall_score == second.overall_score == 72
+    assert calls == 1
+    assert closed
 
 
 def test_url_safety_and_html_cleanup():
