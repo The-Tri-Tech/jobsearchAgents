@@ -38,10 +38,10 @@ class JdMatcherService {
             },
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 50));
     } on TimeoutException {
       throw Exception(
-          'Gemini did not respond within 30 seconds. Please try again.');
+          'The analysis did not finish within 50 seconds. Please try again.');
     }
 
     if (response.statusCode == 200) {

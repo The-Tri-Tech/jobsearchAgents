@@ -85,12 +85,48 @@ def _html_to_text(content: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(content)).strip()
 
 
-async def fetch_job_description(url: str) -> str:
-    """Fetch a public job page with bounded redirects and response size."""
+def _linkedin_guest_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    if not (parsed.hostname or "").lower().endswith("linkedin.com"):
+        return None
+    match = re.search(r"/jobs/view/(?:[^/?#]*-)?(\d+)(?:[/?#]|$)", parsed.path)
+    if not match:
+        return None
+    return f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{match.group(1)}"
+
+
+def _extract_linkedin_job_text(content: str) -> str:
+    """Extract the job fields and omit LinkedIn navigation/sign-in boilerplate."""
+    selectors = (
+        r'<h[12][^>]*class="[^"]*top-card-layout__title[^"]*"[^>]*>(.*?)</h[12]>',
+        r'<a[^>]*class="[^"]*topcard__org-name-link[^"]*"[^>]*>(.*?)</a>',
+        r'<span[^>]*class="[^"]*topcard__flavor--bullet[^"]*"[^>]*>(.*?)</span>',
+        r'<div[^>]*class="[^"]*show-more-less-html__markup[^"]*"[^>]*>(.*?)</div>',
+    )
+    fields = []
+    for pattern in selectors:
+        match = re.search(pattern, content, flags=re.IGNORECASE | re.DOTALL)
+        if match:
+            fields.append(_html_to_text(match.group(1)))
+    return "\n\n".join(field for field in fields if field)
+
+
+async def _fetch_job_description(url: str) -> str:
     current_url = url.strip()
-    headers = {"User-Agent": "SkillBridge-JobMatcher/1.0"}
+    linkedin_url = _linkedin_guest_url(current_url)
+    if linkedin_url:
+        current_url = linkedin_url
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/141.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
     try:
-        async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
+        timeout = httpx.Timeout(12.0, connect=5.0)
+        async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
             for _ in range(4):
                 _validate_public_url(current_url)
                 async with client.stream("GET", current_url, follow_redirects=False) as response:
@@ -107,7 +143,12 @@ async def fetch_job_description(url: str) -> str:
                         if len(chunks) > 2_000_000:
                             raise JobMatchingError("The job page is too large to analyse.")
                     charset = response.encoding or "utf-8"
-                    text = _html_to_text(chunks.decode(charset, errors="replace"))
+                    page = chunks.decode(charset, errors="replace")
+                    text = (
+                        _extract_linkedin_job_text(page)
+                        if linkedin_url
+                        else _html_to_text(page)
+                    )
                     if len(text) < 80:
                         raise JobMatchingError(
                             "The job page did not contain enough readable text. Paste the description instead."
@@ -124,6 +165,17 @@ async def fetch_job_description(url: str) -> str:
             "The job page could not be retrieved. Paste the description instead."
         ) from exc
     raise JobMatchingError("The job URL redirected too many times.")
+
+
+async def fetch_job_description(url: str) -> str:
+    """Fetch a public job page with a hard end-to-end deadline."""
+    try:
+        async with asyncio.timeout(18.0):
+            return await _fetch_job_description(url)
+    except TimeoutError as exc:
+        raise JobMatchingTimeoutError(
+            "The job page did not respond within 18 seconds. Paste the description instead."
+        ) from exc
 
 
 class GeminiJobMatchingAgent:

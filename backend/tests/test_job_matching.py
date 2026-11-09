@@ -11,7 +11,9 @@ from app.services.job_matching_agent import (
     JobMatchingAgent,
     JobMatchingError,
     OpenAIJobMatchingAgent,
+    _extract_linkedin_job_text,
     _html_to_text,
+    _linkedin_guest_url,
     _validate_public_url,
     _analysis_cache,
 )
@@ -39,6 +41,34 @@ def _report() -> AnalysisReport:
             {"title": "Backend Engineer", "match_score": 84, "reason": "Relevant stack"}
         ],
     )
+
+
+def test_linkedin_url_uses_guest_job_endpoint():
+    assert _linkedin_guest_url("https://www.linkedin.com/jobs/view/4471409947/") == (
+        "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4471409947"
+    )
+    assert _linkedin_guest_url(
+        "https://in.linkedin.com/jobs/view/staff-engineer-at-company-4471409947"
+    ) == "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4471409947"
+
+
+def test_extracts_linkedin_job_without_page_boilerplate():
+    page = """
+    <nav>Sign in Join now</nav>
+    <h2 class="top-card-layout__title font-bold">Staff Engineer</h2>
+    <a class="topcard__org-name-link">Example Corp</a>
+    <span class="topcard__flavor topcard__flavor--bullet">Hyderabad</span>
+    <div class="show-more-less-html__markup show-more-less-html__markup--clamp">
+      Build APIs with <strong>.NET</strong> and React.<br>Lead engineers.
+    </div>
+    """
+
+    result = _extract_linkedin_job_text(page)
+
+    assert "Staff Engineer" in result
+    assert "Example Corp" in result
+    assert "Build APIs with .NET and React" in result
+    assert "Sign in" not in result
 
 
 def test_extracts_docx_paragraphs_and_tables(tmp_path):
