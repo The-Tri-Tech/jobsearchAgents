@@ -1,11 +1,18 @@
 from app.schemas.jd_matcher import AnalysisReport
 
 
-def mock_job_match_report(resume_filename: str, jd_source: str) -> AnalysisReport:
+def mock_job_match_report(
+    resume_filename: str,
+    jd_source: str,
+    target_job_title: str | None = None,
+    company: str | None = None,
+) -> AnalysisReport:
     """Return deterministic development data without calling Gemini."""
     return AnalysisReport(
         resume_used=resume_filename,
         jd_source=jd_source,
+        target_job_title=target_job_title,
+        company=company,
         shortlisting_chance=72,
         matched_skills=[
             {"skill": "Python", "context": "Demonstrated in resume projects and experience"},

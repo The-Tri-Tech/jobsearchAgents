@@ -1,6 +1,6 @@
-# SkillBridge - AI Career OS
+# AI Job Assistant
 
-SkillBridge is an AI Career operating system featuring a **Flutter** frontend, **FastAPI** backend, and **PostgreSQL** database.
+AI Job Assistant is an AI-powered job search and career platform featuring a **Flutter** frontend, **FastAPI** backend, and **SQLite** database.
 
 ---
 

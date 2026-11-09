@@ -17,6 +17,8 @@ class JdMatcherService {
     String? jdText,
     String? jdUrl,
     required String resumeFilename,
+    String? jobTitle,
+    String? company,
   }) async {
     final token = await _getToken();
     final uri = Uri.parse(ApiConstants.jdAnalyseEndpoint);
@@ -26,6 +28,8 @@ class JdMatcherService {
     };
     if (jdText != null && jdText.isNotEmpty) body['jd_text'] = jdText;
     if (jdUrl != null && jdUrl.isNotEmpty) body['jd_url'] = jdUrl;
+    if (jobTitle != null && jobTitle.isNotEmpty) body['job_title'] = jobTitle;
+    if (company != null && company.isNotEmpty) body['company'] = company;
 
     late http.Response response;
     try {

@@ -17,4 +17,21 @@ class ApiConstants {
   // JD Matcher
   static const String jdAnalyseEndpoint = "$baseUrl/jd-matcher/analyse";
   static const String followUpsEndpoint = "$baseUrl/follow-ups";
+  static String followUpToggleEndpoint(int id) => "$baseUrl/follow-ups/$id/toggle";
+  static String followUpDeleteEndpoint(int id) => "$baseUrl/follow-ups/$id";
+
+  // Roadmap
+  static const String roadmapCurrentEndpoint = "$baseUrl/roadmap/current";
+  static const String roadmapGenerateEndpoint = "$baseUrl/roadmap/generate";
+
+  // Jobs
+  static const String jobsEndpoint = "$baseUrl/jobs";
+  static String jobStatusEndpoint(int id) => "$baseUrl/jobs/$id/status";
+  static String jobUpdateEndpoint(int id) => "$baseUrl/jobs/$id";
+  static String jobDeleteEndpoint(int id) => "$baseUrl/jobs/$id";
+
+  // Reminders
+  static const String dashboardRemindersEndpoint = "$baseUrl/dashboard/reminders";
+  static String reminderToggleEndpoint(int id) => "$baseUrl/dashboard/reminders/$id/toggle";
+  static String reminderDeleteEndpoint(int id) => "$baseUrl/dashboard/reminders/$id";
 }

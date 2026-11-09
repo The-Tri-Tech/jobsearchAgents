@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../jobs/data/datasources/jobs_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Mock data models
@@ -191,6 +192,24 @@ class _JdEvaluationScreenState extends State<JdEvaluationScreen>
       _correctCount = 0;
       _step = _EvalStep.quiz;
     });
+
+    // Automatically track job in Jobs Tracker
+    final lines = jd.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    String extractedTitle = "Evaluated Job Opportunity";
+    for (final line in lines.take(4)) {
+      if (line.trim().length < 50 && RegExp(r'(developer|engineer|manager|analyst|designer|architect|intern|specialist)', caseSensitive: false).hasMatch(line)) {
+        extractedTitle = line.trim();
+        break;
+      }
+    }
+    JobsService().createJob(
+      title: extractedTitle,
+      jdText: jd,
+      matchScore: 82,
+      status: "Analyzed",
+      source: "JD Evaluation",
+    ).catchError((_) => null);
+
     _fadeController.forward(from: 0);
   }
 

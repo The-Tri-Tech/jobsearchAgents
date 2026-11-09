@@ -3,6 +3,7 @@ import '../../data/datasources/jd_matcher_service.dart';
 import '../../data/models/jd_matcher_model.dart';
 import '../../../resume/data/datasources/resume_service.dart';
 import '../../../resume/data/models/resume_model.dart';
+import '../../../jobs/data/datasources/jobs_service.dart';
 
 class JdMatcherScreen extends StatefulWidget {
   final bool isDarkMode;
@@ -45,6 +46,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   int _jdInputMode = 0; // 0 = paste text, 1 = url
   final _jdTextController = TextEditingController();
   final _jdUrlController = TextEditingController();
+  final _jobTitleController = TextEditingController();
+  final _companyController = TextEditingController();
 
   // Analysis
   bool _analysing = false;
@@ -69,8 +72,153 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   void dispose() {
     _jdTextController.dispose();
     _jdUrlController.dispose();
+    _jobTitleController.dispose();
+    _companyController.dispose();
     _fadeController.dispose();
     super.dispose();
+  }
+
+  String _toTitleCase(String text) {
+    if (text.isEmpty) return text;
+    return text.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
+  void _autoDetectJobDetails() {
+    final url = _jdUrlController.text.trim();
+    final text = _jdTextController.text.trim();
+    String detectedTitle = "";
+    String detectedCompany = "";
+
+    if (url.isNotEmpty) {
+      try {
+        final uri = Uri.parse(url);
+        final host = uri.host.toLowerCase();
+        final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+
+        if (host.contains("linkedin.com")) {
+          for (final seg in segments) {
+            if (seg.toLowerCase().contains("-at-")) {
+              final parts = seg.split("-at-");
+              final compPart = parts.last.split("-").first;
+              if (compPart.isNotEmpty && !RegExp(r'^\d+$').hasMatch(compPart)) {
+                detectedCompany = _toTitleCase(compPart.replaceAll("-", " "));
+              }
+            }
+          }
+        } else if (host.contains("greenhouse.io") && segments.isNotEmpty) {
+          detectedCompany = _toTitleCase(segments[0].replaceAll("-", " "));
+        } else if (host.contains("lever.co") && segments.isNotEmpty) {
+          detectedCompany = _toTitleCase(segments[0].replaceAll("-", " "));
+        } else if (host.contains("ashbyhq.com") && segments.isNotEmpty) {
+          detectedCompany = _toTitleCase(segments[0].replaceAll("-", " "));
+        } else if (host.contains("amazon")) {
+          detectedCompany = "Amazon";
+        } else if (host.contains("google")) {
+          detectedCompany = "Google";
+        } else if (host.contains("microsoft")) {
+          detectedCompany = "Microsoft";
+        } else if (host.contains("apple")) {
+          detectedCompany = "Apple";
+        } else if (host.contains("meta")) {
+          detectedCompany = "Meta";
+        } else if (host.contains("netflix")) {
+          detectedCompany = "Netflix";
+        } else {
+          final parts = host.split(".").where((p) => !["www", "careers", "jobs", "job", "career", "com", "io", "co", "org", "net"].contains(p)).toList();
+          if (parts.isNotEmpty) {
+            detectedCompany = _toTitleCase(parts[0]);
+          }
+        }
+
+        for (final seg in segments.reversed) {
+          var clean = seg.replaceAll(RegExp(r'-\d+$'), '').replaceAll(RegExp(r'^\d+-'), '');
+          if (clean.toLowerCase().contains("-at-")) {
+            clean = clean.split("-at-").first;
+          }
+          if (clean.length > 3 && !RegExp(r'^\d+$').hasMatch(clean) && !["jobs", "view", "job", "careers", "details"].contains(clean.toLowerCase())) {
+            final words = clean.replaceAll("-", " ").replaceAll("_", " ");
+            if (RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(words)) {
+              detectedTitle = _toTitleCase(words);
+              break;
+            } else if (detectedTitle.isEmpty) {
+              detectedTitle = _toTitleCase(words);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (text.isNotEmpty) {
+      final firstChunk = text.length > 400 ? text.substring(0, 400) : text;
+      final mAtComp = RegExp(
+        r"([A-Za-z0-9 /&()\-]{3,50})\s+(?:at|@)\s+([A-Za-z0-9 &.,'-]{2,30})",
+        caseSensitive: false,
+      ).firstMatch(firstChunk);
+      if (mAtComp != null) {
+        if (detectedTitle.isEmpty) detectedTitle = mAtComp.group(1)!.trim();
+        if (detectedCompany.isEmpty) detectedCompany = mAtComp.group(2)!.trim();
+      }
+
+      final lines = text.split("\n").map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+      if (detectedCompany.isEmpty) {
+        for (final l in lines.take(12)) {
+          final mComp = RegExp(r"^(?:Company|Organization|Employer)\s*:\s*([A-Za-z0-9 &.,'-]{2,40})", caseSensitive: false).firstMatch(l);
+          if (mComp != null) {
+            detectedCompany = mComp.group(1)!.trim();
+            break;
+          }
+          final mAbout = RegExp(r"^(?:About|Join|Welcome to)\s+([A-Z][A-Za-z0-9 &.,'-]{1,30})").firstMatch(l);
+          if (mAbout != null) {
+            final c = mAbout.group(1)!.trim();
+            if (!["us", "our", "the role", "this job", "the team"].contains(c.toLowerCase())) {
+              detectedCompany = c;
+              break;
+            }
+          }
+        }
+      }
+
+      if (detectedTitle.isEmpty) {
+        for (final l in lines.take(12)) {
+          final mTitle = RegExp(r'^(?:Job\s*Title|Position|Role|Title)\s*:\s*([A-Za-z0-9 /&()\-]{3,60})', caseSensitive: false).firstMatch(l);
+          if (mTitle != null) {
+            detectedTitle = mTitle.group(1)!.trim();
+            break;
+          }
+        }
+        if (detectedTitle.isEmpty) {
+          for (final l in lines.take(8)) {
+            final cleaned = l.replaceAll(RegExp(r'^[#*\-•\d.]+\s*'), '').trim();
+            if (cleaned.length >= 4 && cleaned.length <= 65 && RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(cleaned)) {
+              if (!cleaned.toLowerCase().startsWith("we are") && !cleaned.toLowerCase().startsWith("looking for") && !cleaned.toLowerCase().startsWith("requirements")) {
+                detectedTitle = cleaned;
+                break;
+              }
+            }
+          }
+        }
+        if (detectedTitle.isEmpty && lines.isNotEmpty) {
+          final first = lines.first.replaceAll(RegExp(r'^[#*\-•\d.]+\s*'), '').trim();
+          if (first.length >= 4 && first.length <= 50 && !first.toLowerCase().startsWith("http")) {
+            detectedTitle = first;
+          }
+        }
+      }
+    }
+
+    if (detectedTitle.isNotEmpty && _jobTitleController.text.isEmpty) {
+      setState(() {
+        _jobTitleController.text = detectedTitle;
+      });
+    }
+    if (detectedCompany.isNotEmpty && _companyController.text.isEmpty) {
+      setState(() {
+        _companyController.text = detectedCompany;
+      });
+    }
   }
 
   // ── Data ───────────────────────────────────────────────────────────────────
@@ -126,10 +274,15 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     });
 
     try {
+      final userTitle = _jobTitleController.text.trim();
+      final userCompany = _companyController.text.trim();
+
       final result = await _matcherService.analyse(
         jdText: _jdInputMode == 0 ? jdText : null,
         jdUrl: _jdInputMode == 1 ? jdUrl : null,
         resumeFilename: resume.filename,
+        jobTitle: userTitle.isNotEmpty ? userTitle : null,
+        company: userCompany.isNotEmpty ? userCompany : null,
       );
       setState(() {
         _report = result;
@@ -150,6 +303,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       _errorMessage = null;
       _followUpEnabled = false;
     });
+    _jobTitleController.clear();
+    _companyController.clear();
     _fadeController.reset();
   }
 
@@ -579,6 +734,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
             TextField(
               controller: _jdTextController,
               maxLines: 10,
+              onChanged: (_) => _autoDetectJobDetails(),
               style: TextStyle(
                   fontSize: 14, color: widget.textPrimary, height: 1.6),
               decoration: InputDecoration(
@@ -607,9 +763,10 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           else
             TextField(
               controller: _jdUrlController,
+              onChanged: (_) => _autoDetectJobDetails(),
               style: TextStyle(fontSize: 14, color: widget.textPrimary),
               decoration: InputDecoration(
-                hintText: 'https://www.linkedin.com/jobs/view/…',
+                hintText: 'https://www.linkedin.com/jobs/view/… or company career link',
                 hintStyle: TextStyle(color: widget.textSecondary, fontSize: 13),
                 prefixIcon: Icon(Icons.link_rounded,
                     color: widget.textSecondary, size: 20),
@@ -633,6 +790,129 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               ),
             ),
+
+          const SizedBox(height: 16),
+
+          // Role and Company Fields (Editable & Auto-detected)
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Job Role / Title',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: widget.textPrimary),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '(auto-detected)',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: widget.textSecondary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _jobTitleController,
+                      style: TextStyle(
+                          fontSize: 13, color: widget.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. Senior Software Engineer',
+                        hintStyle: TextStyle(
+                            fontSize: 12, color: widget.textSecondary),
+                        prefixIcon: Icon(Icons.work_outline_rounded,
+                            size: 18, color: widget.textSecondary),
+                        filled: true,
+                        fillColor: widget.isDarkMode
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFFF9FAFB),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: widget.cardBorder),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: widget.cardBorder),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                              color: widget.textPrimary, width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Company Name',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: widget.textPrimary),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '(auto-detected)',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: widget.textSecondary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _companyController,
+                      style: TextStyle(
+                          fontSize: 13, color: widget.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. Google, Stripe, Startup',
+                        hintStyle: TextStyle(
+                            fontSize: 12, color: widget.textSecondary),
+                        prefixIcon: Icon(Icons.business_outlined,
+                            size: 18, color: widget.textSecondary),
+                        filled: true,
+                        fillColor: widget.isDarkMode
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFFF9FAFB),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: widget.cardBorder),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: widget.cardBorder),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                              color: widget.textPrimary, width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

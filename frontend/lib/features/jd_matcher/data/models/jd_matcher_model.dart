@@ -31,6 +31,8 @@ class RecommendedRoleModel {
 class AnalysisReportModel {
   final String resumeUsed;
   final String jdSource;
+  final String? targetJobTitle;
+  final String? company;
   final int shortlistingChance;
 
   final List<MatchedSkillModel> matchedSkills;
@@ -45,6 +47,8 @@ class AnalysisReportModel {
   const AnalysisReportModel({
     required this.resumeUsed,
     required this.jdSource,
+    this.targetJobTitle,
+    this.company,
     required this.shortlistingChance,
     required this.matchedSkills,
     required this.missingSkills,
@@ -58,6 +62,8 @@ class AnalysisReportModel {
       AnalysisReportModel(
         resumeUsed: j['resume_used'] ?? '',
         jdSource: j['jd_source'] ?? 'text',
+        targetJobTitle: j['target_job_title'],
+        company: j['company'],
         shortlistingChance: (j['shortlisting_chance'] ?? 0) as int,
         matchedSkills: (j['matched_skills'] as List? ?? [])
             .map((e) => MatchedSkillModel.fromJson(e))

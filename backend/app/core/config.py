@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 class Settings(BaseSettings):
     APP_ENV: Literal["development", "test", "production"] = "development"
-    PROJECT_NAME: str = "SkillBridge API"
+    PROJECT_NAME: str = "AI Job Assistant API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
