@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from app.models.jd_analysis import JdAnalysis
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
-from app.schemas.jd_matcher import AnalyseRequest, AnalysisReport
+from app.schemas.jd_matcher import AnalyseRequest, AnalysisReport, UpdateApplicationStatusRequest
 from app.services.job_matching_agent import (
     JobMatchingError,
     JobMatchingTimeoutError,
@@ -101,7 +102,9 @@ async def analyse_jd(
     jd_source = "url" if jd_url else "text"
     if settings.APP_ENV == "development":
         report = mock_job_match_report(safe_filename, jd_source)
-        _persist_analysis(db, current_user, report, safe_filename, jd_source)
+        analysis_id = _persist_analysis(db, current_user, report, safe_filename, jd_source)
+        if analysis_id:
+            report = report.model_copy(update={"analysis_id": analysis_id, "application_status": "not_applied"})
         return report
 
     try:
@@ -122,7 +125,9 @@ async def analyse_jd(
                 resume_filename=safe_filename,
                 jd_source=jd_source,
             )
-        _persist_analysis(db, current_user, report, safe_filename, jd_source)
+        analysis_id = _persist_analysis(db, current_user, report, safe_filename, jd_source)
+        if analysis_id:
+            report = report.model_copy(update={"analysis_id": analysis_id, "application_status": "not_applied"})
         return report
     except (JobMatchingTimeoutError, GroqMatchingTimeoutError) as exc:
         raise HTTPException(
@@ -153,10 +158,10 @@ def _persist_analysis(
     report: AnalysisReport,
     resume_filename: str,
     jd_source: str,
-) -> None:
+) -> int | None:
     user_id = getattr(user, "id", None)
     if not user_id or not hasattr(db, "add"):
-        return
+        return None
     try:
         extracted_title = getattr(report, "job_title", "").strip()
         role_title = (
@@ -175,10 +180,48 @@ def _persist_analysis(
             overall_score=report.overall_score,
             resume_filename=resume_filename,
             jd_source=jd_source,
+            application_status="not_applied",
         )
         db.add(record)
         db.commit()
+        db.refresh(record)
+        return record.id
     except Exception as exc:
         logger.warning("Could not persist JD analysis: %s", exc)
         if hasattr(db, "rollback"):
             db.rollback()
+        return None
+
+
+@router.patch("/analysis/{analysis_id}/status", response_model=dict)
+def update_analysis_status(
+    analysis_id: int,
+    payload: UpdateApplicationStatusRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    analysis = (
+        db.query(JdAnalysis)
+        .filter(JdAnalysis.id == analysis_id, JdAnalysis.user_id == current_user.id)
+        .first()
+    )
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis record not found.",
+        )
+
+    analysis.application_status = payload.application_status
+    if payload.application_status == "applied":
+        analysis.applied_at = datetime.utcnow()
+    else:
+        analysis.applied_at = None
+
+    db.commit()
+    db.refresh(analysis)
+    return {
+        "status": "success",
+        "analysis_id": analysis.id,
+        "application_status": analysis.application_status,
+        "applied_at": analysis.applied_at.isoformat() if analysis.applied_at else None,
+    }

@@ -142,6 +142,65 @@ def get_overall_standing(db: Session, user_id: int) -> dict:
     }
 
 
+def get_today_applied_jobs(db: Session, user_id: int) -> dict:
+    """Fetches jobs that the user applied to today (from JD analyses marked 'applied' or scheduled follow-ups)."""
+    today = date.today()
+    applied_jobs = []
+    seen_titles = set()
+
+    # 1. From JdAnalysis where application_status == 'applied'
+    analyses = (
+        db.query(JdAnalysis)
+        .filter(
+            JdAnalysis.user_id == user_id,
+            JdAnalysis.application_status == "applied",
+        )
+        .order_by(JdAnalysis.created_at.desc())
+        .all()
+    )
+
+    for a in analyses:
+        applied_date = (a.applied_at or a.created_at).date()
+        if applied_date == today:
+            applied_jobs.append({
+                "id": a.id,
+                "role_title": a.role_title,
+                "resume_filename": a.resume_filename,
+                "match_score": a.match_score,
+                "applied_date": applied_date.isoformat(),
+                "status": "applied",
+            })
+            seen_titles.add(a.role_title.strip().lower())
+
+    # 2. Also check FollowUp applications recorded today
+    follow_ups = (
+        db.query(FollowUp)
+        .filter(
+            FollowUp.user_id == user_id,
+            FollowUp.application_date == today,
+        )
+        .all()
+    )
+    for f in follow_ups:
+        title_norm = f.report_title.strip().lower()
+        if title_norm not in seen_titles:
+            applied_jobs.append({
+                "id": f.id,
+                "role_title": f.report_title,
+                "resume_filename": f.resume_filename,
+                "match_score": None,
+                "applied_date": f.application_date.isoformat(),
+                "status": "applied",
+            })
+            seen_titles.add(title_norm)
+
+    return {
+        "count": len(applied_jobs),
+        "as_of_date": today.isoformat(),
+        "jobs": applied_jobs,
+    }
+
+
 def execute_career_tool(
     tool_name: str,
     arguments: dict,
@@ -158,11 +217,24 @@ def execute_career_tool(
         return get_high_match_jobs(db, user_id, min_score=min_score)
     elif tool_name == "get_overall_standing":
         return get_overall_standing(db, user_id)
+    elif tool_name == "get_today_applied_jobs":
+        return get_today_applied_jobs(db, user_id)
     else:
         return {"error": f"Unknown tool '{tool_name}'"}
 
 
 CAREER_TOOLS_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_today_applied_jobs",
+            "description": "Fetch the number and detailed list of jobs the user applied to today.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
     {
         "type": "function",
         "function": {

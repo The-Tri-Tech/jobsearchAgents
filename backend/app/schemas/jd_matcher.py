@@ -26,6 +26,8 @@ class RecommendedRole(BaseModel):
 
 
 class AnalysisReport(BaseModel):
+    analysis_id: int | None = None
+    application_status: str = "not_applied"
     job_title: str = Field(default="", max_length=120)
     resume_used: str
     jd_source: Literal["url", "text"]
@@ -36,3 +38,7 @@ class AnalysisReport(BaseModel):
     summary_title: str = Field(min_length=1, max_length=160)
     summary_paragraphs: list[str] = Field(min_length=1, max_length=4)
     recommended_roles: list[RecommendedRole] = Field(max_length=6)
+
+
+class UpdateApplicationStatusRequest(BaseModel):
+    application_status: Literal["applied", "not_applied"]

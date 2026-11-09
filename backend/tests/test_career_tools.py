@@ -12,6 +12,7 @@ from app.services.career_tools import (
     get_all_follow_ups,
     get_high_match_jobs,
     get_overall_standing,
+    get_today_applied_jobs,
     get_today_follow_ups,
 )
 from app.services.chat_agent import check_career_guardrails
@@ -137,3 +138,45 @@ def test_get_overall_standing(db_session):
 def test_execute_career_tool(db_session):
     tool_res = execute_career_tool("get_overall_standing", {}, db_session, user_id=1)
     assert "average_score" in tool_res
+
+
+def test_get_today_applied_jobs(db_session):
+    today = date.today()
+    # 1. JdAnalysis marked applied
+    a1 = JdAnalysis(
+        user_id=1,
+        role_title="Backend Software Engineer",
+        match_score=85,
+        resume_filename="resume.pdf",
+        application_status="applied",
+    )
+    # 2. JdAnalysis marked not_applied
+    a2 = JdAnalysis(
+        user_id=1,
+        role_title="Frontend Developer",
+        match_score=50,
+        resume_filename="resume.pdf",
+        application_status="not_applied",
+    )
+    # 3. FollowUp applied today
+    f1 = FollowUp(
+        user_id=1,
+        report_title="Stripe - Senior Python Lead",
+        resume_filename="resume.pdf",
+        application_date=today,
+        follow_up_after_days=3,
+        follow_up_date=today + timedelta(days=3),
+    )
+    db_session.add_all([a1, a2, f1])
+    db_session.commit()
+
+    applied_data = get_today_applied_jobs(db_session, user_id=1)
+    assert applied_data["count"] == 2
+    titles = [j["role_title"] for j in applied_data["jobs"]]
+    assert "Backend Software Engineer" in titles
+    assert "Stripe - Senior Python Lead" in titles
+    assert "Frontend Developer" not in titles
+
+    tool_res = execute_career_tool("get_today_applied_jobs", {}, db_session, user_id=1)
+    assert tool_res["count"] == 2
+

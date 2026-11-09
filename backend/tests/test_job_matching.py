@@ -342,3 +342,52 @@ def test_persist_analysis_uses_job_title():
     assert db.added[0].match_score == 74
 
 
+def test_update_analysis_status():
+    class FakeAnalysis:
+        def __init__(self):
+            self.id = 42
+            self.user_id = 1
+            self.application_status = "not_applied"
+            self.applied_at = None
+
+    class FakeQuery:
+        def __init__(self, record):
+            self.record = record
+
+        def filter(self, *args, **kwargs):
+            return self
+
+        def first(self):
+            return self.record
+
+    class FakeSession:
+        def __init__(self, record):
+            self.record = record
+
+        def query(self, model):
+            return FakeQuery(self.record)
+
+        def commit(self):
+            pass
+
+        def refresh(self, obj):
+            pass
+
+    analysis = FakeAnalysis()
+    db = FakeSession(analysis)
+    user = type("User", (), {"id": 1})()
+
+    res = jd_matcher.update_analysis_status(
+        analysis_id=42,
+        payload=jd_matcher.UpdateApplicationStatusRequest(application_status="applied"),
+        current_user=user,
+        db=db,
+    )
+
+    assert res["status"] == "success"
+    assert res["application_status"] == "applied"
+    assert analysis.application_status == "applied"
+    assert analysis.applied_at is not None
+
+
+

@@ -14,5 +14,7 @@ class JdAnalysis(Base):
     overall_score = Column(Integer, nullable=True)
     resume_filename = Column(String, nullable=False)
     jd_source = Column(String, nullable=False, default="text")
+    application_status = Column(String, nullable=False, default="not_applied")
+    applied_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

@@ -70,6 +70,29 @@ class JdMatcherService {
     }
   }
 
+  Future<void> updateApplicationStatus({
+    required int analysisId,
+    required String status,
+  }) async {
+    final token = await _getToken();
+    final uri = Uri.parse(
+        '${ApiConstants.baseUrl}/jd-matcher/analysis/$analysisId/status');
+    final response = await http.patch(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'application_status': status}),
+    );
+
+    if (response.statusCode != 200) {
+      final error = jsonDecode(response.body);
+      throw Exception(
+          error['detail'] ?? 'Failed to update application status.');
+    }
+  }
+
   Future<void> createFollowUp({
     required String reportTitle,
     required String resumeFilename,

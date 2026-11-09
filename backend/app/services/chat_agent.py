@@ -15,6 +15,7 @@ from app.services.career_tools import (
     get_all_follow_ups,
     get_high_match_jobs,
     get_overall_standing,
+    get_today_applied_jobs,
     get_today_follow_ups,
 )
 
@@ -98,9 +99,10 @@ class ChatAgent:
             "2. If the user asks about ANY topic outside of jobs, careers, or their profile (for example: cooking, movie trivia, "
             "politics, sports, general entertainment, creative writing, or non-career general knowledge), politely and firmly refuse to answer. "
             "Explain that you are exclusively focused on helping them with their career and job search, and guide them back to asking about their applications or career goals.\n\n"
-            "FOLLOW-UP SPECIFICATION RULES:\n"
+            "FOLLOW-UP & APPLICATION RULES:\n"
+            "- When the user asks how many jobs they applied to today (or asks for jobs applied today), state the total count clearly and list the specific role titles and details based on the verified applied jobs database tool.\n"
             "- When the user asks for a list of job follow-ups or mentions follow-ups without specifying 'today', provide the full list of all scheduled job follow-ups across all dates, including company/role title, application date, and follow-up date.\n"
-            "- If the user specifically mentions 'today' (e.g., 'today how many jobs i need to follow up?' or 'what are my follow ups today?'), focus strictly on jobs due for follow-up today (or overdue).\n\n"
+            "- If the user specifically mentions 'today' for follow-ups (e.g., 'today how many jobs i need to follow up?' or 'what are my follow ups today?'), focus strictly on jobs due for follow-up today (or overdue).\n\n"
             "STYLE:\n"
             "Keep responses concise, structured (using bullet points or Markdown tables where helpful), candid, and actionable. Do not provide overly long walls of text."
         )
@@ -127,6 +129,11 @@ class ChatAgent:
             if any(k in lower for k in ["how am i doing", "how i am doing", "overall", "average score", "avg of all scores", "overall standing"]):
                 data = get_overall_standing(db, user_id)
                 tool_context_str += f"\n[DATABASE TOOL RESULT - Overall Career Standing & Averages: {json.dumps(data)}]"
+
+            if any(k in lower for k in ["applied today", "have applied today", "did i apply today", "jobs i applied", "applications today", "how many jobs i have applied", "how many jobs did i apply", "applied"]):
+                if not any(f in lower for f in ["follow up", "follow-up", "followup"]) or "applied" in lower:
+                    data = get_today_applied_jobs(db, user_id)
+                    tool_context_str += f"\n[DATABASE TOOL RESULT - Jobs Applied Today: {json.dumps(data)}]"
 
         if tool_context_str:
             system_instruction += (

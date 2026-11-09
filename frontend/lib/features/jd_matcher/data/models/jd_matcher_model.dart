@@ -29,6 +29,8 @@ class RecommendedRoleModel {
 }
 
 class AnalysisReportModel {
+  final int? analysisId;
+  final String applicationStatus; // 'not_applied' | 'applied'
   final String jobTitle;
   final String resumeUsed;
   final String jdSource;
@@ -44,6 +46,8 @@ class AnalysisReportModel {
   final List<RecommendedRoleModel> recommendedRoles;
 
   const AnalysisReportModel({
+    this.analysisId,
+    this.applicationStatus = 'not_applied',
     this.jobTitle = 'Target Role',
     required this.resumeUsed,
     required this.jdSource,
@@ -70,6 +74,8 @@ class AnalysisReportModel {
         : defaultRole;
 
     return AnalysisReportModel(
+      analysisId: j['analysis_id'] as int?,
+      applicationStatus: (j['application_status'] as String?) ?? 'not_applied',
       jobTitle: jobTitle,
       resumeUsed: j['resume_used'] ?? '',
       jdSource: j['jd_source'] ?? 'text',
