@@ -36,6 +36,42 @@ def get_today_follow_ups(db: Session, user_id: int) -> dict:
     ]
 
     return {
+        "scope": "today",
+        "count": len(jobs),
+        "as_of_date": today.isoformat(),
+        "jobs": jobs,
+    }
+
+
+def get_all_follow_ups(db: Session, user_id: int) -> dict:
+    """Fetches all pending job follow-ups for the user across all dates (past, today, future)."""
+    today = date.today()
+    pending = (
+        db.query(FollowUp)
+        .filter(
+            FollowUp.user_id == user_id,
+            FollowUp.status == "pending",
+        )
+        .order_by(FollowUp.follow_up_date.asc())
+        .all()
+    )
+
+    jobs = [
+        {
+            "id": f.id,
+            "role_title": f.report_title,
+            "resume_filename": f.resume_filename,
+            "application_date": f.application_date.isoformat(),
+            "follow_up_date": f.follow_up_date.isoformat(),
+            "is_due_today": f.follow_up_date == today,
+            "days_until_follow_up": (f.follow_up_date - today).days,
+            "status": f.status,
+        }
+        for f in pending
+    ]
+
+    return {
+        "scope": "all",
         "count": len(jobs),
         "as_of_date": today.isoformat(),
         "jobs": jobs,
@@ -115,6 +151,8 @@ def execute_career_tool(
     """Executes the given career MCP tool and returns a structured dictionary result."""
     if tool_name == "get_today_follow_ups":
         return get_today_follow_ups(db, user_id)
+    elif tool_name == "get_all_follow_ups":
+        return get_all_follow_ups(db, user_id)
     elif tool_name == "get_high_match_jobs":
         min_score = arguments.get("min_score", 50)
         return get_high_match_jobs(db, user_id, min_score=min_score)
@@ -129,7 +167,18 @@ CAREER_TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "get_today_follow_ups",
-            "description": "Fetch all job applications that the user needs to follow up on today.",
+            "description": "Fetch job applications that the user needs to follow up on today.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_all_follow_ups",
+            "description": "Fetch the full list of all scheduled job follow-ups for the user across all dates (past, today, and future).",
             "parameters": {
                 "type": "object",
                 "properties": {},

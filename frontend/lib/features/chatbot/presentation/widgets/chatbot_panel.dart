@@ -96,6 +96,7 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
   static const Color _accentBlue = Color(0xFF2563EB);
 
   final List<String> _promptSuggestions = [
+    "List all my job follow-ups",
     "Today how many jobs I need to follow up?",
     "How many I applied where match score > 50%?",
     "How am I doing overall?",

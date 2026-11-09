@@ -12,6 +12,7 @@ from app.schemas.chat import ChatMessageItem
 from app.services.career_tools import (
     CAREER_TOOLS_SCHEMA,
     execute_career_tool,
+    get_all_follow_ups,
     get_high_match_jobs,
     get_overall_standing,
     get_today_follow_ups,
@@ -97,8 +98,11 @@ class ChatAgent:
             "2. If the user asks about ANY topic outside of jobs, careers, or their profile (for example: cooking, movie trivia, "
             "politics, sports, general entertainment, creative writing, or non-career general knowledge), politely and firmly refuse to answer. "
             "Explain that you are exclusively focused on helping them with their career and job search, and guide them back to asking about their applications or career goals.\n\n"
+            "FOLLOW-UP SPECIFICATION RULES:\n"
+            "- When the user asks for a list of job follow-ups or mentions follow-ups without specifying 'today', provide the full list of all scheduled job follow-ups across all dates, including company/role title, application date, and follow-up date.\n"
+            "- If the user specifically mentions 'today' (e.g., 'today how many jobs i need to follow up?' or 'what are my follow ups today?'), focus strictly on jobs due for follow-up today (or overdue).\n\n"
             "STYLE:\n"
-            "Keep responses concise, structured (using bullet points where helpful), candid, and actionable. Do not provide overly long walls of text."
+            "Keep responses concise, structured (using bullet points or Markdown tables where helpful), candid, and actionable. Do not provide overly long walls of text."
         )
 
         if resume_context:
@@ -109,8 +113,12 @@ class ChatAgent:
         if db is not None and user_id is not None:
             lower = message.lower()
             if any(k in lower for k in ["follow up", "follow-up", "followup", "need to follow"]):
-                data = get_today_follow_ups(db, user_id)
-                tool_context_str += f"\n[DATABASE TOOL RESULT - Today's Follow-Ups: {json.dumps(data)}]"
+                if "today" in lower:
+                    data = get_today_follow_ups(db, user_id)
+                    tool_context_str += f"\n[DATABASE TOOL RESULT - Today's Follow-Ups: {json.dumps(data)}]"
+                else:
+                    data = get_all_follow_ups(db, user_id)
+                    tool_context_str += f"\n[DATABASE TOOL RESULT - All Scheduled Job Follow-Ups: {json.dumps(data)}]"
 
             if any(k in lower for k in ["greater than 50", "> 50", "score greater", "suit me score", "suit me", "above 50"]):
                 data = get_high_match_jobs(db, user_id, min_score=50)

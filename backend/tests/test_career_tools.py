@@ -9,6 +9,7 @@ from app.models.jd_analysis import JdAnalysis
 from app.models.user import User
 from app.services.career_tools import (
     execute_career_tool,
+    get_all_follow_ups,
     get_high_match_jobs,
     get_overall_standing,
     get_today_follow_ups,
@@ -77,6 +78,12 @@ def test_get_today_follow_ups(db_session):
     result = get_today_follow_ups(db_session, user_id=1)
     assert result["count"] == 1
     assert result["jobs"][0]["role_title"] == "Stripe Backend Engineer"
+
+    # All follow-ups should return both jobs
+    all_res = get_all_follow_ups(db_session, user_id=1)
+    assert all_res["count"] == 2
+    assert any(j["role_title"] == "Google SRE" for j in all_res["jobs"])
+    assert any(j["role_title"] == "Stripe Backend Engineer" for j in all_res["jobs"])
 
 
 def test_get_high_match_jobs(db_session):
