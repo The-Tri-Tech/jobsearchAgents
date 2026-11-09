@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import engine, Base
-from app.models import follow_up, user  # ensure models are registered
+from app.models import follow_up, jd_analysis, user  # ensure models are registered
 from app.api.v1.router import api_router
 
 logging.basicConfig(level=logging.INFO)

@@ -1,6 +1,10 @@
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Literal, Optional
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+DEFAULT_DB_PATH = str(BACKEND_DIR / "jobsearch.db")
 
 class Settings(BaseSettings):
     APP_ENV: Literal["development", "test", "production"] = "development"
@@ -11,7 +15,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "sqlite:///./jobsearch.db"
+        f"sqlite:///{DEFAULT_DB_PATH}"
     )
     
     # JWT & Auth
@@ -35,7 +39,7 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
-        env_file = ".env"
+        env_file = (str(BACKEND_DIR / ".env"), ".env")
         extra = "allow"
 
 settings = Settings()

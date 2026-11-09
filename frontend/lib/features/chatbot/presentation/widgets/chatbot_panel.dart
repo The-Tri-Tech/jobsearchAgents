@@ -17,7 +17,7 @@ class _ChatMessage {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Mock bot responses
+//  Fallback mock bot responses
 // ─────────────────────────────────────────────────────────────────────────────
 
 const List<String> _mockResponses = [
@@ -35,31 +35,27 @@ const List<String> _mockResponses = [
 
 String _getMockResponse(String userMessage) {
   final lower = userMessage.toLowerCase();
+  if (lower.contains('follow up') || lower.contains('followup') || lower.contains('need to follow')) {
+    return "📅 **Today's Follow-Ups**\nYou can check your pending follow-ups scheduled for today directly on your Dashboard Overview. When you apply through the JD Matcher, follow-ups are automatically scheduled and tracked here.";
+  }
+  if (lower.contains('greater than 50') || lower.contains('suit me') || lower.contains('score')) {
+    return "🎯 **Jobs with Match Score > 50%**\nBased on your JD analysis records, any job where your match score exceeds 50% indicates strong potential. You can review all detailed skill breakdowns in the JD Matcher tab.";
+  }
+  if (lower.contains('how am i doing') || lower.contains('overall') || lower.contains('average')) {
+    return "📊 **Overall Career Standing**\nYou are making consistent progress! Keep testing target job descriptions in the JD Matcher and completing adaptive quizzes to elevate your overall match score and ATS readiness.";
+  }
   if (lower.contains('resume') || lower.contains('cv')) {
-    return "I can help you improve your resume! Make sure it's ATS-friendly — use standard headings, avoid tables or columns, and include keywords from the job description. Would you like me to analyse a specific section?";
+    return "I can help you improve your resume! Make sure it's ATS-friendly — use standard headings, avoid tables or columns, and include keywords from the job description.";
   }
   if (lower.contains('interview')) {
-    return "Interview prep is crucial! Practice the STAR method for behavioral questions, research the company thoroughly, and prepare 2–3 thoughtful questions to ask the interviewer. Want me to run a mock interview session?";
-  }
-  if (lower.contains('job') || lower.contains('apply') || lower.contains('application')) {
-    return "Smart job hunting tip: customize your resume and cover letter for each application, apply within 24 hours of posting, and follow up politely after a week. Quality over quantity wins!";
+    return "Interview prep is crucial! Practice the STAR method for behavioral questions, research the company thoroughly, and prepare 2–3 thoughtful questions to ask the interviewer.";
   }
   if (lower.contains('salary') || lower.contains('pay') || lower.contains('compensation')) {
-    return "Salary negotiation tip: always research market rates on Glassdoor/LinkedIn first. Let the employer make the first offer when possible, and negotiate with data — not emotions. You've got this! 💪";
-  }
-  if (lower.contains('skill') || lower.contains('learn') || lower.contains('course')) {
-    return "Upskilling is a great investment! For tech roles, focus on the top 3 tools mentioned most in your target JDs. Platforms like Coursera, Udemy, and official docs are great. Want a personalized roadmap?";
-  }
-  if (lower.contains('linkedin')) {
-    return "LinkedIn tip: optimize your headline to include your target role and key skills, not just your current title. Post weekly to stay visible. Recruiters search by keywords, so make sure yours are prominent!";
+    return "Salary negotiation tip: always research market rates on Glassdoor/LinkedIn first. Let the employer make the first offer when possible, and negotiate with data.";
   }
   if (lower.contains('hi') || lower.contains('hello') || lower.contains('hey')) {
-    return "Hello! 👋 I'm your AI Career Assistant. I can help you with resume tips, interview prep, job search strategies, and more. What can I help you with today?";
+    return "Hello! 👋 I'm your SkillBridge AI Career Assistant. How can I help with your job search, follow-ups, or interview prep today?";
   }
-  if (lower.contains('thank')) {
-    return "You're welcome! 😊 Best of luck with your job search. Remember, persistence pays off. Feel free to ask anything else!";
-  }
-  // Random response for everything else
   final random = Random();
   return _mockResponses[random.nextInt(_mockResponses.length)];
 }
@@ -74,6 +70,7 @@ class ChatbotPanel extends StatefulWidget {
   final Color cardBorder;
   final Color textPrimary;
   final Color textSecondary;
+  final VoidCallback? onClose;
 
   const ChatbotPanel({
     super.key,
@@ -82,6 +79,7 @@ class ChatbotPanel extends StatefulWidget {
     required this.cardBorder,
     required this.textPrimary,
     required this.textSecondary,
+    this.onClose,
   });
 
   @override
@@ -96,14 +94,21 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
   bool _isBotTyping = false;
 
   static const Color _accentBlue = Color(0xFF2563EB);
-  static const Color _accentBlueDark = Color(0xFF1D4ED8);
+
+  final List<String> _promptSuggestions = [
+    "Today how many jobs I need to follow up?",
+    "How many I applied where match score > 50%?",
+    "How am I doing overall?",
+  ];
 
   @override
   void initState() {
     super.initState();
     // Welcome message
     _messages.add(_ChatMessage(
-      text: "👋 Hi! I'm your AI Career Assistant.\n\nI can help you with:\n• Resume tips & improvements\n• Interview preparation\n• Job search strategies\n• Skill gap analysis\n\nWhat can I help you with today?",
+      text: "👋 Hi! I'm your SkillBridge AI Career Assistant.\n\n"
+          "I can help you monitor your job applications, analyze match scores, and prepare for interviews.\n\n"
+          "Tap one of the quick questions below or ask me anything career-related!",
       sender: _Sender.bot,
     ));
   }
@@ -125,6 +130,11 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
         );
       }
     });
+  }
+
+  Future<void> _sendPrompt(String text) async {
+    _inputController.text = text;
+    await _sendMessage();
   }
 
   Future<void> _sendMessage() async {
@@ -153,7 +163,6 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
         history: history,
       );
     } catch (_) {
-      // Graceful fallback to local tips if backend / LLM is unreachable
       await Future.delayed(const Duration(milliseconds: 600));
       reply = _getMockResponse(text);
     }
@@ -172,21 +181,13 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 360,
       decoration: BoxDecoration(
         color: widget.cardBg,
-        border: Border(left: BorderSide(color: widget.cardBorder, width: 1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(-4, 0),
-          ),
-        ],
       ),
       child: Column(
         children: [
           _buildHeader(),
+          _buildPromptChips(),
           Expanded(child: _buildMessageList()),
           if (_isBotTyping) _buildTypingIndicator(),
           _buildInputBar(),
@@ -199,30 +200,29 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
         color: _accentBlue,
-        borderRadius: BorderRadius.zero,
       ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
             child: const Center(
-              child: Icon(Icons.smart_toy_outlined, color: Colors.white, size: 20),
+              child: Icon(Icons.smart_toy_outlined, color: Colors.white, size: 19),
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'AI Career Assistant',
                   style: TextStyle(
                     color: Colors.white,
@@ -232,20 +232,11 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
                 ),
                 Row(
                   children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF4ADE80),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    const Text(
-                      'Online',
+                    Text(
+                      'MCP Tools & Guardrails Active',
                       style: TextStyle(
                         color: Colors.white70,
-                        fontSize: 11,
+                        fontSize: 10.5,
                       ),
                     ),
                   ],
@@ -255,19 +246,78 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline_rounded,
-                color: Colors.white70, size: 20),
+                color: Colors.white70, size: 18),
             tooltip: 'Clear chat',
             onPressed: () {
               setState(() {
                 _messages.clear();
                 _messages.add(_ChatMessage(
-                  text: "Chat cleared! How can I help you today?",
+                  text: "Chat cleared! How can I help with your job search today?",
                   sender: _Sender.bot,
                 ));
               });
             },
           ),
+          if (widget.onClose != null)
+            IconButton(
+              icon: const Icon(Icons.close_rounded,
+                  color: Colors.white, size: 20),
+              tooltip: 'Close Assistant',
+              onPressed: widget.onClose,
+            ),
         ],
+      ),
+    );
+  }
+
+  // ── Quick Prompt Suggestion Chips ─────────────────────────────────────────
+
+  Widget _buildPromptChips() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: widget.isDarkMode
+            ? const Color(0xFF0F172A)
+            : const Color(0xFFF8FAFC),
+        border: Border(
+          bottom: BorderSide(color: widget.cardBorder),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: _promptSuggestions.map((prompt) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ActionChip(
+                elevation: 0,
+                pressElevation: 1,
+                label: Text(
+                  prompt,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: widget.isDarkMode
+                        ? const Color(0xFF93C5FD)
+                        : const Color(0xFF1D4ED8),
+                  ),
+                ),
+                backgroundColor: widget.isDarkMode
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFEFF6FF),
+                side: BorderSide(
+                  color: _accentBlue.withOpacity(0.3),
+                  width: 1,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                onPressed: _isBotTyping ? null : () => _sendPrompt(prompt),
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -277,7 +327,7 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
   Widget _buildMessageList() {
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       itemCount: _messages.length,
       itemBuilder: (context, index) {
         return _buildMessageBubble(_messages[index]);
@@ -296,14 +346,14 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
         children: [
           if (!isUser) ...[
             Container(
-              width: 28,
-              height: 28,
+              width: 26,
+              height: 26,
               decoration: const BoxDecoration(
                 color: _accentBlue,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.smart_toy_outlined,
-                  size: 15, color: Colors.white),
+                  size: 14, color: Colors.white),
             ),
             const SizedBox(width: 8),
           ],
@@ -333,7 +383,7 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
                     style: TextStyle(
                       fontSize: 13,
                       color: isUser ? Colors.white : widget.textPrimary,
-                      height: 1.5,
+                      height: 1.45,
                     ),
                   ),
                 ),
@@ -348,12 +398,12 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
           if (isUser) ...[
             const SizedBox(width: 8),
             Container(
-              width: 28,
-              height: 28,
+              width: 26,
+              height: 26,
               decoration: BoxDecoration(
                 color: widget.isDarkMode
-                    ? const Color(0xFF334155)
-                    : const Color(0xFF101828),
+                    ? const Color(0xFF475569)
+                    : const Color(0xFF1E293B),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.person_rounded,
@@ -373,29 +423,23 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
       child: Row(
         children: [
           Container(
-            width: 28,
-            height: 28,
-            decoration: const BoxDecoration(
-                color: _accentBlue, shape: BoxShape.circle),
-            child: const Icon(Icons.smart_toy_outlined,
-                size: 15, color: Colors.white),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               color: widget.isDarkMode
                   ? const Color(0xFF334155)
                   : const Color(0xFFF1F5F9),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-                bottomLeft: Radius.circular(4),
-                bottomRight: Radius.circular(16),
-              ),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: _TypingDots(color: widget.textSecondary),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Thinking with MCP tools… ',
+                  style: TextStyle(fontSize: 11, color: widget.textSecondary),
+                ),
+                const _TypingDots(color: _accentBlue),
+              ],
+            ),
           ),
         ],
       ),
@@ -406,53 +450,51 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
 
   Widget _buildInputBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: widget.cardBg,
-        border: Border(top: BorderSide(color: widget.cardBorder, width: 1)),
+        border: Border(top: BorderSide(color: widget.cardBorder)),
       ),
       child: Row(
         children: [
           Expanded(
             child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: widget.isDarkMode
                     ? const Color(0xFF0F172A)
-                    : const Color(0xFFF9FAFB),
-                borderRadius: BorderRadius.circular(24),
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: widget.cardBorder),
               ),
               child: TextField(
                 controller: _inputController,
                 style: TextStyle(fontSize: 13, color: widget.textPrimary),
-                maxLines: 3,
-                minLines: 1,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
                 decoration: InputDecoration(
-                  hintText: 'Ask me anything…',
-                  hintStyle: TextStyle(
-                      color: widget.textSecondary, fontSize: 13),
+                  hintText: 'Ask about follow-ups, match scores, or career tips…',
+                  hintStyle:
+                      TextStyle(fontSize: 12, color: widget.textSecondary),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
+                onSubmitted: (_) => _sendMessage(),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _sendMessage,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 40,
-              height: 40,
+          InkWell(
+            onTap: _isBotTyping ? null : _sendMessage,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              width: 36,
+              height: 36,
               decoration: const BoxDecoration(
                 color: _accentBlue,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.send_rounded,
-                  color: Colors.white, size: 18),
+                  color: Colors.white, size: 17),
             ),
           ),
         ],
@@ -465,6 +507,89 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
     final m = t.minute.toString().padLeft(2, '0');
     return '$h:$m';
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Chatbot Pop-up Dialog
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ChatbotDialog extends StatelessWidget {
+  final bool isDarkMode;
+  final Color cardBg;
+  final Color cardBorder;
+  final Color textPrimary;
+  final Color textSecondary;
+
+  const ChatbotDialog({
+    super.key,
+    required this.isDarkMode,
+    required this.cardBg,
+    required this.cardBorder,
+    required this.textPrimary,
+    required this.textSecondary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final dialogWidth = min(size.width * 0.94, 460.0);
+    final dialogHeight = min(size.height * 0.84, 660.0);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.all(16),
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            width: dialogWidth,
+            height: dialogHeight,
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: cardBorder, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 28,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: ChatbotPanel(
+              isDarkMode: isDarkMode,
+              cardBg: cardBg,
+              cardBorder: cardBorder,
+              textPrimary: textPrimary,
+              textSecondary: textSecondary,
+              onClose: () => Navigator.of(context).pop(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+void showChatbotPopup(
+  BuildContext context, {
+  required bool isDarkMode,
+  required Color cardBg,
+  required Color cardBorder,
+  required Color textPrimary,
+  required Color textSecondary,
+}) {
+  showDialog(
+    context: context,
+    builder: (ctx) => ChatbotDialog(
+      isDarkMode: isDarkMode,
+      cardBg: cardBg,
+      cardBorder: cardBorder,
+      textPrimary: textPrimary,
+      textSecondary: textSecondary,
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -512,8 +637,8 @@ class _TypingDotsState extends State<_TypingDots>
               child: Opacity(
                 opacity: opacity,
                 child: Container(
-                  width: 7,
-                  height: 7,
+                  width: 6,
+                  height: 6,
                   decoration: BoxDecoration(
                       color: widget.color, shape: BoxShape.circle),
                 ),

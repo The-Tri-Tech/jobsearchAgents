@@ -1,11 +1,17 @@
+import logging
 import re
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.api.v1.auth import get_current_user
 from app.api.v1.resume import UPLOAD_DIR, _safe_filename
 from app.core.config import settings
+from app.db.session import get_db
+from app.models.jd_analysis import JdAnalysis
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 from app.schemas.jd_matcher import AnalyseRequest, AnalysisReport
 from app.services.job_matching_agent import (
     JobMatchingError,
@@ -68,6 +74,7 @@ def validate_jd_url(url: str) -> str:
 async def analyse_jd(
     payload: AnalyseRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     jd_text = (payload.jd_text or "").strip()
     jd_url = (payload.jd_url or "").strip()
@@ -93,26 +100,30 @@ async def analyse_jd(
 
     jd_source = "url" if jd_url else "text"
     if settings.APP_ENV == "development":
-        return mock_job_match_report(safe_filename, jd_source)
+        report = mock_job_match_report(safe_filename, jd_source)
+        _persist_analysis(db, current_user, report, safe_filename, jd_source)
+        return report
 
     try:
         resume_text = extract_resume_text(resume_path)
         job_description = await fetch_job_description(jd_url) if jd_url else jd_text
 
         if settings.LLM_PROVIDER == "groq":
-            return await groq_matching_agent.analyse(
+            report = await groq_matching_agent.analyse(
                 resume_text=resume_text,
                 job_description=job_description,
                 resume_filename=safe_filename,
                 jd_source=jd_source,
             )
         else:
-            return await job_matching_agent.analyse(
+            report = await job_matching_agent.analyse(
                 resume_text=resume_text,
                 job_description=job_description,
                 resume_filename=safe_filename,
                 jd_source=jd_source,
             )
+        _persist_analysis(db, current_user, report, safe_filename, jd_source)
+        return report
     except (JobMatchingTimeoutError, GroqMatchingTimeoutError) as exc:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
@@ -128,3 +139,33 @@ async def analyse_jd(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+
+
+def _persist_analysis(
+    db: Session | None,
+    user: object | None,
+    report: AnalysisReport,
+    resume_filename: str,
+    jd_source: str,
+) -> None:
+    user_id = getattr(user, "id", None)
+    if not user_id or not hasattr(db, "add"):
+        return
+    try:
+        role_title = report.summary_title or (
+            report.recommended_roles[0].title if report.recommended_roles else "Target Role"
+        )
+        record = JdAnalysis(
+            user_id=user_id,
+            role_title=role_title,
+            match_score=report.shortlisting_chance,
+            overall_score=report.overall_score,
+            resume_filename=resume_filename,
+            jd_source=jd_source,
+        )
+        db.add(record)
+        db.commit()
+    except Exception as exc:
+        logger.warning("Could not persist JD analysis: %s", exc)
+        if hasattr(db, "rollback"):
+            db.rollback()

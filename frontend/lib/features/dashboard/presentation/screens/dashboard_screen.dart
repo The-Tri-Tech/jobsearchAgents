@@ -20,7 +20,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   int _activeNavIndex = 0;
   bool _isDarkMode = false;
-  bool _isChatOpen = false;
 
   final List<Map<String, dynamic>> _navItems = [
     {"title": "Overview", "icon": Icons.grid_view_rounded},
@@ -89,6 +88,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  void _openChatbotPopup() {
+    showChatbotPopup(
+      context,
+      isDarkMode: _isDarkMode,
+      cardBg: _cardBg,
+      cardBorder: _cardBorder,
+      textPrimary: _textPrimary,
+      textSecondary: _textSecondary,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -97,6 +107,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: _bg,
       drawer: !isDesktop ? Drawer(child: _buildSidebar()) : null,
+      floatingActionButton: _activeNavIndex == 0
+          ? Container(
+              margin: const EdgeInsets.only(bottom: 8, right: 8),
+              child: FloatingActionButton(
+                onPressed: _openChatbotPopup,
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                elevation: 6,
+                shape: const CircleBorder(),
+                tooltip: 'Ask SkillBridge AI',
+                child: const Icon(Icons.auto_awesome, size: 26),
+              ),
+            )
+          : null,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -120,21 +144,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-          ),
-
-          // Chat Panel — slides in from the right
-          AnimatedSize(
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeInOut,
-            child: _isChatOpen
-                ? ChatbotPanel(
-                    isDarkMode: _isDarkMode,
-                    cardBg: _cardBg,
-                    cardBorder: _cardBorder,
-                    textPrimary: _textPrimary,
-                    textSecondary: _textSecondary,
-                  )
-                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -534,30 +543,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
 
-          // Chat toggle button
+          // Chat button
           Tooltip(
-            message: _isChatOpen ? 'Close AI Assistant' : 'Open AI Assistant',
+            message: 'Open AI Assistant',
             child: GestureDetector(
-              onTap: () => setState(() => _isChatOpen = !_isChatOpen),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+              onTap: _openChatbotPopup,
+              child: Container(
                 width: 36,
                 height: 36,
                 margin: const EdgeInsets.only(left: 4),
                 decoration: BoxDecoration(
-                  color: _isChatOpen
-                      ? const Color(0xFF2563EB)
-                      : (_isDarkMode
-                          ? const Color(0xFF334155)
-                          : const Color(0xFFF2F4F7)),
+                  color: const Color(0xFF2563EB),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  _isChatOpen
-                      ? Icons.chat_rounded
-                      : Icons.chat_outlined,
-                  size: 18,
-                  color: _isChatOpen ? Colors.white : _textSecondary,
+                child: const Center(
+                  child: Icon(
+                    Icons.auto_awesome,
+                    size: 18,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),

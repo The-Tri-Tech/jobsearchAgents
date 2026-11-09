@@ -1,8 +1,10 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.api.v1.auth import get_current_user
 from app.api.v1.resume import UPLOAD_DIR, _safe_filename
+from app.db.session import get_db
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat_agent import ChatAgentError, chat_agent
@@ -17,6 +19,7 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 async def send_chat_message(
     payload: ChatRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     resume_context = None
     if payload.resume_filename:
@@ -33,6 +36,8 @@ async def send_chat_message(
             message=payload.message.strip(),
             history=payload.history,
             resume_context=resume_context,
+            db=db,
+            user_id=current_user.id,
         )
         return ChatResponse(reply=reply)
     except ChatAgentError as exc:
