@@ -83,22 +83,30 @@ def extract_job_details(
 ) -> tuple[str, str, str]:
     """Accurately extracts real job title, company, and location from URL and/or JD text."""
     title = (pref_title or "").strip()
+    if title.lower() in {"https", "http", "www", "target role", "job opportunity", "link import"} or title.lower().startswith(("http:", "https:")):
+        title = ""
+
     company = (pref_company or "").strip()
+    if company.lower() in {"linkedin", "http", "https", "www", "hiring company"} or company.lower().startswith(("http:", "https:")):
+        company = ""
+
     location = "Remote"
 
     if jd_text:
         # Check standard LinkedIn / job board header: "Role at Company — Location"
-        first_chunk = jd_text[:400]
+        first_chunk = jd_text[:500]
         m_at_comp = re.search(
-            r'([A-Za-z0-9 /&()\-]{3,50})\s+(?:at|@)\s+([A-Za-z0-9 &.,\'-]{2,30})(?:\s*[—\-|•,]\s*([A-Za-z0-9 ,.\'-]{2,40}))?',
+            r'([A-Za-z0-9 /&()+.\#\-]{3,80})\s+(?:at|@)\s+([A-Za-z0-9 &.,\'-]{2,40})(?:\s*[—\-|•,]\s*([A-Za-z0-9 ,.\'-]{2,40}))?',
             first_chunk,
             re.IGNORECASE,
         )
         if m_at_comp:
-            if not title:
-                title = m_at_comp.group(1).strip()
-            if not company:
-                company = m_at_comp.group(2).strip()
+            cand_title = m_at_comp.group(1).strip()
+            cand_comp = m_at_comp.group(2).strip()
+            if not title and cand_title.lower() not in {"https", "http"} and not cand_title.lower().startswith(("http:", "https:")):
+                title = cand_title
+            if not company and cand_comp.lower() not in {"linkedin", "https", "http"}:
+                company = cand_comp
             if m_at_comp.group(3):
                 location = m_at_comp.group(3).strip()
 
@@ -135,7 +143,7 @@ def extract_job_details(
                 company = "Uber"
             else:
                 parts = [p for p in host.split(".") if p not in {"www", "careers", "jobs", "job", "career", "com", "io", "co", "org", "net", "ai"}]
-                if parts:
+                if parts and parts[0].lower() not in {"linkedin", "http", "https"}:
                     company = parts[0].title()
         except Exception:
             pass
@@ -149,12 +157,13 @@ def extract_job_details(
                 clean_seg = re.sub(r'^\d+-', '', clean_seg)
                 if "-at-" in clean_seg.lower():
                     clean_seg = clean_seg.split("-at-")[0]
-                if len(clean_seg) > 3 and not clean_seg.isdigit() and clean_seg.lower() not in {"jobs", "view", "job", "careers", "details", "results", "en", "us"}:
+                ignored_slugs = {"jobs", "view", "job", "careers", "details", "results", "en", "us", "http", "https", "www", "company"}
+                if len(clean_seg) > 3 and not clean_seg.isdigit() and clean_seg.lower() not in ignored_slugs:
                     words = clean_seg.replace("-", " ").replace("_", " ").title()
                     if any(w in words.lower() for w in ["developer", "engineer", "manager", "lead", "analyst", "architect", "designer", "scientist", "intern", "specialist"]):
                         title = words
                         break
-                    elif not title:
+                    elif not title and words.lower() not in {"https", "http"}:
                         title = words
         except Exception:
             pass
@@ -165,23 +174,27 @@ def extract_job_details(
             for l in lines[:12]:
                 m = re.search(r'^(?:Company|Organization|Employer)\s*:\s*([A-Za-z0-9 &.,\'-]{2,40})', l, re.IGNORECASE)
                 if m:
-                    company = m.group(1).strip()
-                    break
+                    cand = m.group(1).strip()
+                    if cand.lower() not in {"linkedin", "http", "https"}:
+                        company = cand
+                        break
                 m2 = re.search(r'^(?:About|Join|Welcome to)\s+([A-Z][A-Za-z0-9 &.,\'-]{1,30})', l)
-                if m2 and not any(w in m2.group(1).lower() for w in ["us", "our", "the role", "this job", "the team"]):
+                if m2 and not any(w in m2.group(1).lower() for w in ["us", "our", "the role", "this job", "the team", "linkedin"]):
                     company = m2.group(1).strip()
                     break
                 m3 = re.search(r'^At\s+([A-Z][A-Za-z0-9 &.,\'-]{1,30}),', l)
-                if m3:
+                if m3 and m3.group(1).lower() not in {"linkedin", "http"}:
                     company = m3.group(1).strip()
                     break
 
         if not title:
             for l in lines[:12]:
-                m = re.search(r'^(?:Job\s*Title|Position|Role|Title)\s*:\s*([A-Za-z0-9 /&()\-]{3,60})', l, re.IGNORECASE)
+                m = re.search(r'^(?:Job\s*Title|Position|Role|Title)\s*:\s*([A-Za-z0-9 /&()+.\#\-]{3,70})', l, re.IGNORECASE)
                 if m:
-                    title = m.group(1).strip()
-                    break
+                    cand = m.group(1).strip()
+                    if cand.lower() not in {"https", "http"} and not cand.lower().startswith(("http:", "https:")):
+                        title = cand
+                        break
 
             if not title:
                 role_keywords = [
@@ -191,19 +204,19 @@ def extract_job_details(
                 ]
                 for l in lines[:8]:
                     cleaned = re.sub(r'^[#*\-•\d.]+\s*', '', l).strip()
-                    if 4 <= len(cleaned) <= 65 and any(k in cleaned.lower() for k in role_keywords):
-                        if not cleaned.lower().startswith(("we are", "looking for", "requirements", "responsibilities", "you will")):
+                    if 4 <= len(cleaned) <= 75 and any(k in cleaned.lower() for k in role_keywords):
+                        if not cleaned.lower().startswith(("we are", "looking for", "requirements", "responsibilities", "you will", "http", "www")):
                             title = cleaned
                             break
 
         if not title and lines:
             first = re.sub(r'^[#*\-•\d.]+\s*', '', lines[0]).strip()
-            if 4 <= len(first) <= 50 and not first.lower().startswith(("http", "www", "about", "we ")):
+            if 4 <= len(first) <= 60 and not first.lower().startswith(("http", "www", "about", "we ")):
                 title = first
 
-    if not title:
+    if not title or title.lower() in {"https", "http"}:
         title = "Job Opportunity"
-    if not company:
+    if not company or company.lower() in {"linkedin", "https", "http"}:
         company = "Hiring Company"
 
     return title, company, location
@@ -263,8 +276,11 @@ async def analyse_jd(
             target_job_title=extracted_title,
             company=extracted_company,
         )
-        if extracted_title and extracted_title != "Job Opportunity":
-            report.job_title = extracted_title
+        resolved_title = extracted_title if extracted_title and extracted_title not in {"Job Opportunity", "Https", "Http"} else (report.recommended_roles[0].title if report.recommended_roles else "Job Opportunity")
+        resolved_company = extracted_company if extracted_company and extracted_company not in {"Hiring Company", "Linkedin", "Https", "Http"} else (report.company or "Hiring Company")
+        report.job_title = resolved_title
+        report.target_job_title = resolved_title
+        report.company = resolved_company
         analysis_id = _persist_analysis(db, current_user, report, safe_filename, jd_source)
         if analysis_id:
             report = report.model_copy(update={"analysis_id": analysis_id, "application_status": "not_applied"})
@@ -287,10 +303,17 @@ async def analyse_jd(
                     resume_filename=safe_filename,
                     jd_source=jd_source,
                 )
-            report.target_job_title = extracted_title
-            report.company = extracted_company
-            if extracted_title and extracted_title != "Job Opportunity":
-                report.job_title = extracted_title
+            resolved_title = extracted_title if extracted_title and extracted_title not in {"Job Opportunity", "Https", "Http"} else (
+                getattr(report, "job_title", None)
+                or getattr(report, "target_job_title", None)
+                or (report.recommended_roles[0].title if report.recommended_roles else "Job Opportunity")
+            )
+            resolved_company = extracted_company if extracted_company and extracted_company not in {"Hiring Company", "Linkedin", "Https", "Http"} else (
+                getattr(report, "company", None) or "Hiring Company"
+            )
+            report.target_job_title = resolved_title
+            report.job_title = resolved_title
+            report.company = resolved_company
             analysis_id = _persist_analysis(db, current_user, report, safe_filename, jd_source)
             if analysis_id:
                 report = report.model_copy(update={"analysis_id": analysis_id, "application_status": "not_applied"})
@@ -324,22 +347,24 @@ async def analyse_jd(
         if jd_url:
             existing = db.query(Job).filter(Job.job_url == jd_url).first()
         if not existing:
-            existing = db.query(Job).filter(Job.title == extracted_title, Job.company == extracted_company).first()
+            existing = db.query(Job).filter(Job.title == resolved_title, Job.company == resolved_company).first()
 
         if existing:
             existing.match_score = score
             existing.status = "Analyzed"
+            existing.title = resolved_title
+            existing.company = resolved_company
             existing.updated_at = datetime.utcnow()
             db.commit()
             db.refresh(existing)
         else:
             new_job = Job(
                 user_id=current_user.id if current_user else None,
-                title=extracted_title,
-                company=extracted_company,
+                title=resolved_title,
+                company=resolved_company,
                 location=extracted_location,
                 job_url=jd_url if jd_url else None,
-                jd_text=(job_description or jd_text)[:2000] if (job_description or jd_text) else None,
+                jd_text=(job_description or jd_text)[:5000] if (job_description or jd_text) else None,
                 match_score=score,
                 status="Analyzed",
                 source="Link Import" if jd_url else "Pasted JD",

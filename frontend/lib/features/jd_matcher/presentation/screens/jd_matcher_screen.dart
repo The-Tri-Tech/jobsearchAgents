@@ -130,7 +130,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           detectedCompany = "Netflix";
         } else {
           final parts = host.split(".").where((p) => !["www", "careers", "jobs", "job", "career", "com", "io", "co", "org", "net"].contains(p)).toList();
-          if (parts.isNotEmpty) {
+          if (parts.isNotEmpty && parts[0].toLowerCase() != "linkedin") {
             detectedCompany = _toTitleCase(parts[0]);
           }
         }
@@ -140,12 +140,13 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           if (clean.toLowerCase().contains("-at-")) {
             clean = clean.split("-at-").first;
           }
-          if (clean.length > 3 && !RegExp(r'^\d+$').hasMatch(clean) && !["jobs", "view", "job", "careers", "details"].contains(clean.toLowerCase())) {
+          final ignored = ["jobs", "view", "job", "careers", "details", "results", "http", "https", "www", "company"];
+          if (clean.length > 3 && !RegExp(r'^\d+$').hasMatch(clean) && !ignored.contains(clean.toLowerCase())) {
             final words = clean.replaceAll("-", " ").replaceAll("_", " ");
             if (RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(words)) {
               detectedTitle = _toTitleCase(words);
               break;
-            } else if (detectedTitle.isEmpty) {
+            } else if (detectedTitle.isEmpty && words.toLowerCase() != "https" && words.toLowerCase() != "http") {
               detectedTitle = _toTitleCase(words);
             }
           }
@@ -154,28 +155,34 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     }
 
     if (text.isNotEmpty) {
-      final firstChunk = text.length > 400 ? text.substring(0, 400) : text;
+      final firstChunk = text.length > 500 ? text.substring(0, 500) : text;
       final mAtComp = RegExp(
-        r"([A-Za-z0-9 /&()\-]{3,50})\s+(?:at|@)\s+([A-Za-z0-9 &.,'-]{2,30})",
+        r"([A-Za-z0-9 /&()+.\#\-]{3,80})\s+(?:at|@)\s+([A-Za-z0-9 &.,'-]{2,40})",
         caseSensitive: false,
       ).firstMatch(firstChunk);
       if (mAtComp != null) {
-        if (detectedTitle.isEmpty) detectedTitle = mAtComp.group(1)!.trim();
-        if (detectedCompany.isEmpty) detectedCompany = mAtComp.group(2)!.trim();
+        final candTitle = mAtComp.group(1)!.trim();
+        final candComp = mAtComp.group(2)!.trim();
+        if (detectedTitle.isEmpty && candTitle.toLowerCase() != "https" && candTitle.toLowerCase() != "http") {
+          detectedTitle = candTitle;
+        }
+        if (detectedCompany.isEmpty && candComp.toLowerCase() != "linkedin") {
+          detectedCompany = candComp;
+        }
       }
 
       final lines = text.split("\n").map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
       if (detectedCompany.isEmpty) {
         for (final l in lines.take(12)) {
           final mComp = RegExp(r"^(?:Company|Organization|Employer)\s*:\s*([A-Za-z0-9 &.,'-]{2,40})", caseSensitive: false).firstMatch(l);
-          if (mComp != null) {
+          if (mComp != null && mComp.group(1)!.trim().toLowerCase() != "linkedin") {
             detectedCompany = mComp.group(1)!.trim();
             break;
           }
           final mAbout = RegExp(r"^(?:About|Join|Welcome to)\s+([A-Z][A-Za-z0-9 &.,'-]{1,30})").firstMatch(l);
           if (mAbout != null) {
             final c = mAbout.group(1)!.trim();
-            if (!["us", "our", "the role", "this job", "the team"].contains(c.toLowerCase())) {
+            if (!["us", "our", "the role", "this job", "the team", "linkedin"].contains(c.toLowerCase())) {
               detectedCompany = c;
               break;
             }
@@ -185,8 +192,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
 
       if (detectedTitle.isEmpty) {
         for (final l in lines.take(12)) {
-          final mTitle = RegExp(r'^(?:Job\s*Title|Position|Role|Title)\s*:\s*([A-Za-z0-9 /&()\-]{3,60})', caseSensitive: false).firstMatch(l);
-          if (mTitle != null) {
+          final mTitle = RegExp(r'^(?:Job\s*Title|Position|Role|Title)\s*:\s*([A-Za-z0-9 /&()+.\#\-]{3,70})', caseSensitive: false).firstMatch(l);
+          if (mTitle != null && mTitle.group(1)!.trim().toLowerCase() != "https") {
             detectedTitle = mTitle.group(1)!.trim();
             break;
           }
@@ -194,8 +201,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
         if (detectedTitle.isEmpty) {
           for (final l in lines.take(8)) {
             final cleaned = l.replaceAll(RegExp(r'^[#*\-•\d.]+\s*'), '').trim();
-            if (cleaned.length >= 4 && cleaned.length <= 65 && RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(cleaned)) {
-              if (!cleaned.toLowerCase().startsWith("we are") && !cleaned.toLowerCase().startsWith("looking for") && !cleaned.toLowerCase().startsWith("requirements")) {
+            if (cleaned.length >= 4 && cleaned.length <= 75 && RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(cleaned)) {
+              if (!cleaned.toLowerCase().startsWith("we are") && !cleaned.toLowerCase().startsWith("looking for") && !cleaned.toLowerCase().startsWith("requirements") && !cleaned.toLowerCase().startsWith("http")) {
                 detectedTitle = cleaned;
                 break;
               }
@@ -204,11 +211,18 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
         }
         if (detectedTitle.isEmpty && lines.isNotEmpty) {
           final first = lines.first.replaceAll(RegExp(r'^[#*\-•\d.]+\s*'), '').trim();
-          if (first.length >= 4 && first.length <= 50 && !first.toLowerCase().startsWith("http")) {
+          if (first.length >= 4 && first.length <= 60 && !first.toLowerCase().startsWith("http") && !first.toLowerCase().startsWith("www")) {
             detectedTitle = first;
           }
         }
       }
+    }
+
+    if (detectedTitle.toLowerCase() == "https" || detectedTitle.toLowerCase() == "http") {
+      detectedTitle = "";
+    }
+    if (detectedCompany.toLowerCase() == "linkedin") {
+      detectedCompany = "";
     }
 
     if (detectedTitle.isNotEmpty && _jobTitleController.text.isEmpty) {

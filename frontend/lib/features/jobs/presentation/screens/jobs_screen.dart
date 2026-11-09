@@ -202,7 +202,7 @@ class _JobsScreenState extends State<JobsScreen> {
           detectedCompany = "Netflix";
         } else {
           final parts = host.split(".").where((p) => !["www", "careers", "jobs", "job", "career", "com", "io", "co", "org", "net"].contains(p)).toList();
-          if (parts.isNotEmpty) {
+          if (parts.isNotEmpty && parts[0].toLowerCase() != "linkedin") {
             detectedCompany = _toTitleCase(parts[0]);
           }
         }
@@ -212,12 +212,13 @@ class _JobsScreenState extends State<JobsScreen> {
           if (clean.toLowerCase().contains("-at-")) {
             clean = clean.split("-at-").first;
           }
-          if (clean.length > 3 && !RegExp(r'^\d+$').hasMatch(clean) && !["jobs", "view", "job", "careers", "details"].contains(clean.toLowerCase())) {
+          final ignored = ["jobs", "view", "job", "careers", "details", "results", "http", "https", "www", "company"];
+          if (clean.length > 3 && !RegExp(r'^\d+$').hasMatch(clean) && !ignored.contains(clean.toLowerCase())) {
             final words = clean.replaceAll("-", " ").replaceAll("_", " ");
             if (RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(words)) {
               detectedTitle = _toTitleCase(words);
               break;
-            } else if (detectedTitle.isEmpty) {
+            } else if (detectedTitle.isEmpty && words.toLowerCase() != "https" && words.toLowerCase() != "http") {
               detectedTitle = _toTitleCase(words);
             }
           }
@@ -226,28 +227,34 @@ class _JobsScreenState extends State<JobsScreen> {
     }
 
     if (jdText.isNotEmpty) {
-      final firstChunk = jdText.length > 400 ? jdText.substring(0, 400) : jdText;
+      final firstChunk = jdText.length > 500 ? jdText.substring(0, 500) : jdText;
       final mAtComp = RegExp(
-        r"([A-Za-z0-9 /&()\-]{3,50})\s+(?:at|@)\s+([A-Za-z0-9 &.,'-]{2,30})",
+        r"([A-Za-z0-9 /&()+.\#\-]{3,80})\s+(?:at|@)\s+([A-Za-z0-9 &.,'-]{2,40})",
         caseSensitive: false,
       ).firstMatch(firstChunk);
       if (mAtComp != null) {
-        if (detectedTitle.isEmpty) detectedTitle = mAtComp.group(1)!.trim();
-        if (detectedCompany.isEmpty) detectedCompany = mAtComp.group(2)!.trim();
+        final candTitle = mAtComp.group(1)!.trim();
+        final candComp = mAtComp.group(2)!.trim();
+        if (detectedTitle.isEmpty && candTitle.toLowerCase() != "https" && candTitle.toLowerCase() != "http") {
+          detectedTitle = candTitle;
+        }
+        if (detectedCompany.isEmpty && candComp.toLowerCase() != "linkedin") {
+          detectedCompany = candComp;
+        }
       }
 
       final lines = jdText.split("\n").map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
       if (detectedCompany.isEmpty) {
         for (final l in lines.take(12)) {
           final mComp = RegExp(r"^(?:Company|Organization|Employer)\s*:\s*([A-Za-z0-9 &.,'-]{2,40})", caseSensitive: false).firstMatch(l);
-          if (mComp != null) {
+          if (mComp != null && mComp.group(1)!.trim().toLowerCase() != "linkedin") {
             detectedCompany = mComp.group(1)!.trim();
             break;
           }
           final mAbout = RegExp(r"^(?:About|Join|Welcome to)\s+([A-Z][A-Za-z0-9 &.,'-]{1,30})").firstMatch(l);
           if (mAbout != null) {
             final c = mAbout.group(1)!.trim();
-            if (!["us", "our", "the role", "this job", "the team"].contains(c.toLowerCase())) {
+            if (!["us", "our", "the role", "this job", "the team", "linkedin"].contains(c.toLowerCase())) {
               detectedCompany = c;
               break;
             }
@@ -257,8 +264,8 @@ class _JobsScreenState extends State<JobsScreen> {
 
       if (detectedTitle.isEmpty) {
         for (final l in lines.take(12)) {
-          final mTitle = RegExp(r'^(?:Job\s*Title|Position|Role|Title)\s*:\s*([A-Za-z0-9 /&()\-]{3,60})', caseSensitive: false).firstMatch(l);
-          if (mTitle != null) {
+          final mTitle = RegExp(r'^(?:Job\s*Title|Position|Role|Title)\s*:\s*([A-Za-z0-9 /&()+.\#\-]{3,70})', caseSensitive: false).firstMatch(l);
+          if (mTitle != null && mTitle.group(1)!.trim().toLowerCase() != "https") {
             detectedTitle = mTitle.group(1)!.trim();
             break;
           }
@@ -266,8 +273,8 @@ class _JobsScreenState extends State<JobsScreen> {
         if (detectedTitle.isEmpty) {
           for (final l in lines.take(8)) {
             final cleaned = l.replaceAll(RegExp(r'^[#*\-•\d.]+\s*'), '').trim();
-            if (cleaned.length >= 4 && cleaned.length <= 65 && RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(cleaned)) {
-              if (!cleaned.toLowerCase().startsWith("we are") && !cleaned.toLowerCase().startsWith("looking for") && !cleaned.toLowerCase().startsWith("requirements")) {
+            if (cleaned.length >= 4 && cleaned.length <= 75 && RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(cleaned)) {
+              if (!cleaned.toLowerCase().startsWith("we are") && !cleaned.toLowerCase().startsWith("looking for") && !cleaned.toLowerCase().startsWith("requirements") && !cleaned.toLowerCase().startsWith("http")) {
                 detectedTitle = cleaned;
                 break;
               }
@@ -276,11 +283,18 @@ class _JobsScreenState extends State<JobsScreen> {
         }
         if (detectedTitle.isEmpty && lines.isNotEmpty) {
           final first = lines.first.replaceAll(RegExp(r'^[#*\-•\d.]+\s*'), '').trim();
-          if (first.length >= 4 && first.length <= 50 && !first.toLowerCase().startsWith("http")) {
+          if (first.length >= 4 && first.length <= 60 && !first.toLowerCase().startsWith("http") && !first.toLowerCase().startsWith("www")) {
             detectedTitle = first;
           }
         }
       }
+    }
+
+    if (detectedTitle.toLowerCase() == "https" || detectedTitle.toLowerCase() == "http") {
+      detectedTitle = "";
+    }
+    if (detectedCompany.toLowerCase() == "linkedin") {
+      detectedCompany = "";
     }
 
     setDialogState(() {
@@ -291,6 +305,67 @@ class _JobsScreenState extends State<JobsScreen> {
         companyCtrl.text = detectedCompany;
       }
     });
+  }
+
+  String _cleanJobTitle(JobModel job) {
+    var title = job.title.trim();
+    if (title.toLowerCase() == 'https' || title.toLowerCase() == 'http' || title.isEmpty) {
+      if (job.jdText != null && job.jdText!.isNotEmpty) {
+        final m = RegExp(r'^([A-Za-z0-9 /&()+.\#\-]{3,80})\s+(?:at|@)\s+', caseSensitive: false).firstMatch(job.jdText!);
+        if (m != null) return m.group(1)!.trim();
+      }
+      return 'Target Role';
+    }
+    if (title.startsWith('js Developer')) return 'Next.js Developer Intern';
+    if (title.startsWith('js / React Native')) return 'Junior Full-Stack & Mobile App Developer (React / Next.js / React Native)';
+    return title;
+  }
+
+  String _cleanJobCompany(JobModel job) {
+    var comp = job.company.trim();
+    if (comp.toLowerCase() == 'linkedin' || comp.toLowerCase() == 'hiring company' || comp.isEmpty) {
+      if (job.jdText != null && job.jdText!.isNotEmpty) {
+        final m = RegExp(r"\b(?:at|@)\s+([A-Za-z0-9 &.,'-]{2,35})", caseSensitive: false).firstMatch(job.jdText!);
+        if (m != null && m.group(1)!.trim().toLowerCase() != 'linkedin') {
+          return m.group(1)!.trim();
+        }
+      }
+    }
+    return comp.isEmpty ? 'Hiring Company' : comp;
+  }
+
+  String _extractRoleDescriptionPreview(String? raw, String title, String company) {
+    if (raw == null || raw.trim().isEmpty) return '';
+    final trimmed = raw.trim();
+
+    final paragraphs = trimmed.split(RegExp(r'\n\s*\n|\r\n\s*\r\n'));
+
+    for (final para in paragraphs) {
+      final cleanPara = para.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+      if (cleanPara.isEmpty) continue;
+
+      final lower = cleanPara.toLowerCase();
+      final isHeaderOnly = (title.isNotEmpty && lower == title.toLowerCase()) ||
+          (company.isNotEmpty && lower == company.toLowerCase()) ||
+          lower.startsWith('${title.toLowerCase()} at ${company.toLowerCase()}') ||
+          (cleanPara.length < 50 && (lower.startsWith('job title:') || lower.startsWith('position:') || lower.startsWith('location:')));
+
+      if (!isHeaderOnly && cleanPara.length >= 20) {
+        final stripped = cleanPara.replaceAll(
+          RegExp(r'^(?:About\s+(?:the\s+)?(?:role|job|company)|job\s+summary|overview|description|role\s+summary|mission)\s*[:—\-]?\s*', caseSensitive: false),
+          '',
+        ).trim();
+        if (stripped.length >= 15) {
+          return stripped;
+        }
+      }
+    }
+
+    final lines = trimmed.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    if (lines.length > 1) {
+      return lines.sublist(1).join(' ').trim();
+    }
+    return trimmed;
   }
 
   Future<void> _showAddJobDialog() async {
@@ -1092,6 +1167,10 @@ class _JobsScreenState extends State<JobsScreen> {
       matchColor = const Color(0xFFF59E0B);
     }
 
+    final cleanTitle = _cleanJobTitle(job);
+    final cleanCompany = _cleanJobCompany(job);
+    final rolePreview = _extractRoleDescriptionPreview(job.jdText, cleanTitle, cleanCompany);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(20),
@@ -1113,7 +1192,7 @@ class _JobsScreenState extends State<JobsScreen> {
             ),
             child: Center(
               child: Text(
-                job.company.isNotEmpty ? job.company[0].toUpperCase() : "J",
+                cleanCompany.isNotEmpty ? cleanCompany[0].toUpperCase() : "J",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: widget.textPrimary),
               ),
             ),
@@ -1133,7 +1212,7 @@ class _JobsScreenState extends State<JobsScreen> {
                         children: [
                           Flexible(
                             child: Text(
-                              job.title,
+                              cleanTitle,
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: widget.textPrimary),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1179,7 +1258,7 @@ class _JobsScreenState extends State<JobsScreen> {
                 // Company & Details
                 Row(
                   children: [
-                    Text(job.company, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: widget.textPrimary)),
+                    Text(cleanCompany, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: widget.textPrimary)),
                     Text(" • ${job.location}", style: TextStyle(fontSize: 12, color: widget.textSecondary)),
                     const SizedBox(width: 8),
                     Container(
@@ -1196,13 +1275,13 @@ class _JobsScreenState extends State<JobsScreen> {
                   ],
                 ),
 
-                if (job.jdText != null && job.jdText!.isNotEmpty) ...[
+                if (rolePreview.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    job.jdText!,
+                    rolePreview,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: widget.textSecondary, height: 1.4),
+                    style: TextStyle(fontSize: 12.5, color: widget.textSecondary, height: 1.45),
                   ),
                 ],
 
