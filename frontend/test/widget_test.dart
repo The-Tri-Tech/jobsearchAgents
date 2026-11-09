@@ -5,6 +5,6 @@ import 'package:skillbridge_frontend/features/auth/presentation/screens/auth_scr
 void main() {
   testWidgets('Smoke test renders AuthScreen', (WidgetTester tester) async {
     await tester.pumpWidget(const MaterialApp(home: AuthScreen()));
-    expect(find.text('SkillBridge'), findsOneWidget);
+    expect(find.text('AI Job Assistant'), findsOneWidget);
   });
 }

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../jobs/data/datasources/jobs_service.dart';
 import '../../../resume/data/datasources/resume_service.dart';
 import '../../../resume/data/models/resume_model.dart';
 import '../../data/datasources/jd_evaluation_service.dart';

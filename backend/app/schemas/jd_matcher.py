@@ -7,6 +7,8 @@ class AnalyseRequest(BaseModel):
     jd_text: str | None = None
     jd_url: str | None = None
     resume_filename: str
+    job_title: str | None = None
+    company: str | None = None
 
 
 class MatchedSkill(BaseModel):
@@ -31,6 +33,8 @@ class AnalysisReport(BaseModel):
     job_title: str = Field(default="", max_length=120)
     resume_used: str
     jd_source: Literal["url", "text"]
+    target_job_title: str | None = None
+    company: str | None = None
     shortlisting_chance: int = Field(ge=0, le=100)
     matched_skills: list[MatchedSkill] = Field(max_length=15)
     missing_skills: list[MissingSkill] = Field(max_length=15)

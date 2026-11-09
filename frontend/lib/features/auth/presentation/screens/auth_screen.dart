@@ -124,7 +124,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const [
                             Text(
-                              "SkillBridge",
+                              "AI Job Assistant",
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -160,7 +160,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     const SizedBox(height: 8),
                     Text(
                       _isSignUp
-                          ? "Join SkillBridge to access your personalized career roadmap"
+                          ? "Join AI Job Assistant to access your personalized career roadmap"
                           : "Please enter your details to sign in",
                       textAlign: TextAlign.center,
                       style: const TextStyle(

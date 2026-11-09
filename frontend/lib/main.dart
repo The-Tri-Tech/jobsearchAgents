@@ -10,18 +10,18 @@ void main() async {
   final authService = AuthService();
   final token = await authService.getToken();
 
-  runApp(SkillBridgeApp(initialScreen: token != null ? const DashboardScreen() : const AuthScreen()));
+  runApp(AIJobAssistantApp(initialScreen: token != null ? const DashboardScreen() : const AuthScreen()));
 }
 
-class SkillBridgeApp extends StatelessWidget {
+class AIJobAssistantApp extends StatelessWidget {
   final Widget initialScreen;
 
-  const SkillBridgeApp({super.key, required this.initialScreen});
+  const AIJobAssistantApp({super.key, required this.initialScreen});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SkillBridge - AI Career OS',
+      title: 'AI Job Assistant',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: initialScreen,

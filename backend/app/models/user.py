@@ -10,6 +10,9 @@ class User(Base):
     full_name = Column(String, default="Student", nullable=False)
     hashed_password = Column(String, nullable=False)
     plan = Column(String, default="Pro plan")
-    avatar_letter = Column(String, default="A")
+    avatar_letter = Column(String, default="S")
+    phone_number = Column(String, default="+91 98765 43210")
+    location = Column(String, default="Bengaluru, Karnataka, India")
+    target_role = Column(String, default="Associate Product Manager")
+    bio = Column(String, default="Aspiring Product & Tech Professional")
     created_at = Column(DateTime, default=datetime.utcnow)
-

@@ -34,6 +34,8 @@ class AnalysisReportModel {
   final String jobTitle;
   final String resumeUsed;
   final String jdSource;
+  final String? targetJobTitle;
+  final String? company;
   final int shortlistingChance;
 
   final List<MatchedSkillModel> matchedSkills;
@@ -51,6 +53,8 @@ class AnalysisReportModel {
     this.jobTitle = 'Target Role',
     required this.resumeUsed,
     required this.jdSource,
+    this.targetJobTitle,
+    this.company,
     required this.shortlistingChance,
     required this.matchedSkills,
     required this.missingSkills,
@@ -61,7 +65,8 @@ class AnalysisReportModel {
   });
 
   factory AnalysisReportModel.fromJson(Map<String, dynamic> j) {
-    final rawJobTitle = (j['job_title'] as String?)?.trim();
+    final rawJobTitle = (j['job_title'] as String?)?.trim() ??
+        (j['target_job_title'] as String?)?.trim();
     final recRoles = (j['recommended_roles'] as List? ?? [])
         .map((e) => RecommendedRoleModel.fromJson(e))
         .toList();
@@ -79,6 +84,8 @@ class AnalysisReportModel {
       jobTitle: jobTitle,
       resumeUsed: j['resume_used'] ?? '',
       jdSource: j['jd_source'] ?? 'text',
+      targetJobTitle: (j['target_job_title'] as String?) ?? jobTitle,
+      company: j['company'] as String?,
       shortlistingChance: (j['shortlisting_chance'] ?? 0) as int,
       matchedSkills: (j['matched_skills'] as List? ?? [])
           .map((e) => MatchedSkillModel.fromJson(e))

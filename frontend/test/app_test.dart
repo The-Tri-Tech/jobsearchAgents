@@ -5,11 +5,11 @@ import 'package:skillbridge_frontend/features/auth/presentation/screens/auth_scr
 import 'package:skillbridge_frontend/features/dashboard/presentation/screens/dashboard_screen.dart';
 
 void main() {
-  testWidgets('Renders AuthScreen with SkillBridge logo and inputs', (WidgetTester tester) async {
+  testWidgets('Renders AuthScreen with AI Job Assistant logo and inputs', (WidgetTester tester) async {
     await tester.pumpWidget(const MaterialApp(home: AuthScreen()));
 
     // Verify Brand elements exist
-    expect(find.text('SkillBridge'), findsOneWidget);
+    expect(find.text('AI Job Assistant'), findsOneWidget);
     expect(find.text('AI Career OS'), findsOneWidget);
     expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Sign In'), findsWidgets);
