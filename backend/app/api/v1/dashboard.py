@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.follow_up import FollowUp
+from app.models.jd_analysis import JdAnalysis
 from app.models.user import User
 from app.schemas.user import (
     DashboardOverview,
@@ -22,6 +23,24 @@ def get_dashboard_overview(
     user_out = UserOut.model_validate(current_user)
     first_name = current_user.full_name.split()[0] if current_user.full_name else "Student"
 
+    # Query user JD analyses
+    jd_records = (
+        db.query(JdAnalysis)
+        .filter(JdAnalysis.user_id == current_user.id)
+        .all()
+    )
+    if jd_records:
+        avg_score = round(sum(r.match_score for r in jd_records) / len(jd_records))
+        jd_match_value = f"{avg_score}%"
+        jd_match_label = f"{len(jd_records)} JD{'s' if len(jd_records) > 1 else ''} analyzed"
+        jd_progress_status = f"{avg_score}% avg match"
+        jd_analyzed_completed = True
+    else:
+        jd_match_value = "--"
+        jd_match_label = "Analyze a JD"
+        jd_progress_status = "No data"
+        jd_analyzed_completed = False
+
     metrics = [
         StatCard(
             title="ATS Score",
@@ -31,8 +50,8 @@ def get_dashboard_overview(
         ),
         StatCard(
             title="JD Match",
-            value="--",
-            action_label="Analyze a JD",
+            value=jd_match_value,
+            action_label=jd_match_label,
             icon_type="target",
         ),
         StatCard(
@@ -51,7 +70,7 @@ def get_dashboard_overview(
 
     weekly_progress = [
         ProgressItem(label="Resume strength", status="No data"),
-        ProgressItem(label="JD match rate", status="No data"),
+        ProgressItem(label="JD match rate", status=jd_progress_status),
         ProgressItem(label="Roadmap completion", status="No roadmap yet"),
         ProgressItem(label="Interview score", status="Not completed"),
     ]
@@ -59,7 +78,7 @@ def get_dashboard_overview(
     today_tasks = [
         TaskItem(id=1, title="Upload and parse resume", completed=False),
         TaskItem(id=2, title="Run ATS analysis", completed=False),
-        TaskItem(id=3, title="Analyze JD match", completed=False),
+        TaskItem(id=3, title="Analyze JD match", completed=jd_analyzed_completed),
         TaskItem(id=4, title="Generate roadmap", completed=False),
         TaskItem(id=5, title="Complete adaptive quiz", completed=False),
         TaskItem(id=6, title="Complete mock interview", completed=False),
