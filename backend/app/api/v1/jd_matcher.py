@@ -263,6 +263,8 @@ async def analyse_jd(
             target_job_title=extracted_title,
             company=extracted_company,
         )
+        if extracted_title and extracted_title != "Job Opportunity":
+            report.job_title = extracted_title
         analysis_id = _persist_analysis(db, current_user, report, safe_filename, jd_source)
         if analysis_id:
             report = report.model_copy(update={"analysis_id": analysis_id, "application_status": "not_applied"})
@@ -287,6 +289,8 @@ async def analyse_jd(
                 )
             report.target_job_title = extracted_title
             report.company = extracted_company
+            if extracted_title and extracted_title != "Job Opportunity":
+                report.job_title = extracted_title
             analysis_id = _persist_analysis(db, current_user, report, safe_filename, jd_source)
             if analysis_id:
                 report = report.model_copy(update={"analysis_id": analysis_id, "application_status": "not_applied"})
@@ -360,14 +364,18 @@ def _persist_analysis(
     if not user_id or not hasattr(db, "add"):
         return None
     try:
-        extracted_title = getattr(report, "job_title", "").strip()
+        extracted_title = (
+            getattr(report, "target_job_title", None)
+            or getattr(report, "job_title", None)
+            or ""
+        ).strip()
         role_title = (
             extracted_title
-            if extracted_title and extracted_title != "Target Role"
+            if extracted_title and extracted_title not in ("Target Role", "Job Opportunity")
             else (
                 report.recommended_roles[0].title
                 if report.recommended_roles
-                else (report.summary_title or "Target Role")
+                else "Target Job Role"
             )
         )
         record = JdAnalysis(

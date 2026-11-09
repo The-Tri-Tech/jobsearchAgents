@@ -8,8 +8,37 @@ from app.db.session import engine, Base
 from app.models import follow_up, jd_analysis, job, reminder, user  # ensure models are registered
 from app.api.v1.router import api_router
 
+from sqlalchemy import inspect, text
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def _migrate_db(bind_engine):
+    """Ensure newly added columns exist in existing SQLite tables."""
+    try:
+        inspector = inspect(bind_engine)
+        with bind_engine.begin() as conn:
+            if "users" in inspector.get_table_names():
+                user_cols = {c["name"] for c in inspector.get_columns("users")}
+                new_user_cols = {
+                    "phone_number": "VARCHAR DEFAULT '+91 98765 43210'",
+                    "location": "VARCHAR DEFAULT 'Bengaluru, Karnataka, India'",
+                    "target_role": "VARCHAR DEFAULT 'Associate Product Manager'",
+                    "bio": "VARCHAR DEFAULT 'Aspiring Product & Tech Professional'",
+                    "plan": "VARCHAR DEFAULT 'Pro plan'",
+                    "avatar_letter": "VARCHAR DEFAULT 'S'",
+                }
+                for col_name, col_def in new_user_cols.items():
+                    if col_name not in user_cols:
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}"))
+            if "jd_analyses" in inspector.get_table_names():
+                jd_cols = {c["name"] for c in inspector.get_columns("jd_analyses")}
+                if "application_status" not in jd_cols:
+                    conn.execute(text("ALTER TABLE jd_analyses ADD COLUMN application_status VARCHAR NOT NULL DEFAULT 'not_applied'"))
+                if "applied_at" not in jd_cols:
+                    conn.execute(text("ALTER TABLE jd_analyses ADD COLUMN applied_at DATETIME"))
+    except Exception as err:
+        logger.warning(f"Database schema check notice: {err}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,6 +46,7 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("Initializing database tables...")
         Base.metadata.create_all(bind=engine)
+        _migrate_db(engine)
         logger.info("Database tables initialized successfully.")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")

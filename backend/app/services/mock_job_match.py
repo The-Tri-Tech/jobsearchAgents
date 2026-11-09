@@ -9,7 +9,7 @@ def mock_job_match_report(
 ) -> AnalysisReport:
     """Return deterministic development data without calling Gemini."""
     return AnalysisReport(
-        job_title="Python Backend Engineer",
+        job_title=target_job_title or "Python Backend Engineer",
         resume_used=resume_filename,
         jd_source=jd_source,
         target_job_title=target_job_title,
