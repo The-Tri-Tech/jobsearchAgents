@@ -17,4 +17,7 @@ class ApiConstants {
   // JD Matcher
   static const String jdAnalyseEndpoint = "$baseUrl/jd-matcher/analyse";
   static const String followUpsEndpoint = "$baseUrl/follow-ups";
+
+  // Chatbot
+  static const String chatEndpoint = "$baseUrl/chat";
 }

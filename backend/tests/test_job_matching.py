@@ -195,6 +195,20 @@ def test_url_safety_and_html_cleanup():
     assert _html_to_text("<h1>Python &amp; APIs</h1><script>ignore()</script>") == "Python & APIs"
 
 
+def test_validate_jd_url_rejects_linkedin_and_invalid():
+    with pytest.raises(HTTPException) as exc1:
+        jd_matcher.validate_jd_url("https://www.linkedin.com/jobs/view/123456")
+    assert exc1.value.status_code == 422
+    assert "LinkedIn" in exc1.value.detail
+
+    with pytest.raises(HTTPException) as exc2:
+        jd_matcher.validate_jd_url("not-a-valid-url")
+    assert exc2.value.status_code == 422
+
+    normalized = jd_matcher.validate_jd_url("careers.google.com/jobs/results/123")
+    assert normalized == "https://careers.google.com/jobs/results/123"
+
+
 def test_endpoint_uses_selected_resume_and_agent(tmp_path, monkeypatch):
     resume = tmp_path / "selected(1).docx"
     document = Document()
@@ -213,6 +227,7 @@ def test_endpoint_uses_selected_resume_and_agent(tmp_path, monkeypatch):
     monkeypatch.setattr(jd_matcher, "UPLOAD_DIR", tmp_path)
     monkeypatch.setattr(jd_matcher, "job_matching_agent", FakeAgent())
     monkeypatch.setattr(jd_matcher.settings, "APP_ENV", "test")
+    monkeypatch.setattr(jd_matcher.settings, "LLM_PROVIDER", "gemini")
 
     result = asyncio.run(
         jd_matcher.analyse_jd(
@@ -266,3 +281,36 @@ def test_development_mode_returns_mock_without_calling_agent(tmp_path, monkeypat
 
     assert result.resume_used == "development.pdf"
     assert result.overall_score == 72
+
+
+def test_endpoint_uses_groq_when_provider_is_groq(tmp_path, monkeypatch):
+    resume = tmp_path / "resume_groq.docx"
+    document = Document()
+    document.add_paragraph("Fullstack Python and React developer with five years of experience building scalable backend APIs.")
+    document.save(resume)
+
+    class FakeGroqAgent:
+        async def analyse(self, **kwargs):
+            assert kwargs["resume_filename"] == "resume_groq.docx"
+            return _report().model_copy(
+                update={"resume_used": kwargs["resume_filename"], "summary_title": "Analyzed by Groq"}
+            )
+
+    monkeypatch.setattr(jd_matcher, "UPLOAD_DIR", tmp_path)
+    monkeypatch.setattr(jd_matcher, "groq_matching_agent", FakeGroqAgent())
+    monkeypatch.setattr(jd_matcher.settings, "APP_ENV", "test")
+    monkeypatch.setattr(jd_matcher.settings, "LLM_PROVIDER", "groq")
+
+    result = asyncio.run(
+        jd_matcher.analyse_jd(
+            AnalyseRequest(
+                jd_text="Fullstack Developer with Python and React experience " * 5,
+                resume_filename="resume_groq.docx",
+            ),
+            current_user=object(),
+        )
+    )
+
+    assert result.resume_used == "resume_groq.docx"
+    assert result.summary_title == "Analyzed by Groq"
+

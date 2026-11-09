@@ -112,10 +112,40 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       setState(() => _errorMessage = 'Please paste the Job Description text.');
       return;
     }
-    if (_jdInputMode == 1 && jdUrl.isEmpty) {
-      setState(
-          () => _errorMessage = 'Please enter a valid Job Description URL.');
-      return;
+    if (_jdInputMode == 1) {
+      if (jdUrl.isEmpty) {
+        setState(
+            () => _errorMessage = 'Please enter a valid Job Description URL.');
+        return;
+      }
+
+      final normalized = jdUrl.startsWith('http://') || jdUrl.startsWith('https://')
+          ? jdUrl
+          : 'https://$jdUrl';
+
+      final uri = Uri.tryParse(normalized);
+      final host = uri?.host.toLowerCase() ?? '';
+
+      if (uri == null || host.isEmpty || !host.contains('.')) {
+        setState(() => _errorMessage =
+            'Please enter a valid URL (e.g. https://company.com/jobs/123).');
+        return;
+      }
+
+      if (host.contains('linkedin.com')) {
+        setState(() => _errorMessage =
+            'LinkedIn requires a login to view job postings and blocks automated URL analysis. Please copy the job description text and use "Paste JD Text" instead.');
+        return;
+      }
+
+      if (host.contains('indeed.com') ||
+          host.contains('glassdoor.com') ||
+          host.contains('naukri.com') ||
+          host.contains('ziprecruiter.com')) {
+        setState(() => _errorMessage =
+            'This job board requires authentication or blocks page reading. Please copy the job description text into "Paste JD Text" instead.');
+        return;
+      }
     }
 
     setState(() {

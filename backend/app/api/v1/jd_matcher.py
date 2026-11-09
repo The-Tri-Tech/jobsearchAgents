@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.v1.auth import get_current_user
@@ -11,10 +12,48 @@ from app.services.job_matching_agent import (
     fetch_job_description,
     job_matching_agent,
 )
+from app.services.groq_matching_agent import (
+    GroqMatchingError,
+    GroqMatchingTimeoutError,
+    groq_matching_agent,
+)
 from app.services.resume_text import ResumeExtractionError, extract_resume_text
 from app.services.mock_job_match import mock_job_match_report
 
 router = APIRouter(prefix="/jd-matcher", tags=["JD Matcher"])
+
+BLOCKED_JOB_DOMAINS = {
+    "linkedin.com": "LinkedIn",
+    "indeed.com": "Indeed",
+    "glassdoor.com": "Glassdoor",
+    "naukri.com": "Naukri",
+    "ziprecruiter.com": "ZipRecruiter",
+}
+
+
+def validate_jd_url(url: str) -> str:
+    cleaned = url.strip()
+    if not cleaned.startswith(("http://", "https://")):
+        cleaned = "https://" + cleaned
+
+    parsed = urlparse(cleaned)
+    hostname = (parsed.hostname or "").lower()
+    if not hostname or "." not in hostname:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Please provide a valid job posting URL (e.g. https://company.com/jobs/123).",
+        )
+
+    for domain, site_name in BLOCKED_JOB_DOMAINS.items():
+        if hostname == domain or hostname.endswith("." + domain):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"{site_name} requires a user login to view job postings and blocks automated analysis. "
+                    "Please copy the job description text and use 'Paste JD Text' instead."
+                ),
+            )
+    return cleaned
 
 
 @router.post("/analyse", response_model=AnalysisReport)
@@ -34,6 +73,8 @@ async def analyse_jd(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Provide a job description or URL, not both.",
         )
+    if jd_url:
+        jd_url = validate_jd_url(jd_url)
 
     safe_filename = _safe_filename(payload.resume_filename)
     if safe_filename != payload.resume_filename:
@@ -49,13 +90,22 @@ async def analyse_jd(
     try:
         resume_text = extract_resume_text(resume_path)
         job_description = await fetch_job_description(jd_url) if jd_url else jd_text
-        return await job_matching_agent.analyse(
-            resume_text=resume_text,
-            job_description=job_description,
-            resume_filename=safe_filename,
-            jd_source=jd_source,
-        )
-    except JobMatchingTimeoutError as exc:
+
+        if settings.LLM_PROVIDER == "groq":
+            return await groq_matching_agent.analyse(
+                resume_text=resume_text,
+                job_description=job_description,
+                resume_filename=safe_filename,
+                jd_source=jd_source,
+            )
+        else:
+            return await job_matching_agent.analyse(
+                resume_text=resume_text,
+                job_description=job_description,
+                resume_filename=safe_filename,
+                jd_source=jd_source,
+            )
+    except (JobMatchingTimeoutError, GroqMatchingTimeoutError) as exc:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail=str(exc),
@@ -65,7 +115,7 @@ async def analyse_jd(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
-    except JobMatchingError as exc:
+    except (JobMatchingError, GroqMatchingError) as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),

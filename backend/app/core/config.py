@@ -19,11 +19,19 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
+    # LLM Provider: "gemini" | "groq"
+    LLM_PROVIDER: Literal["gemini", "groq"] = "gemini"
+
     # Gemini job-matching agent
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-3.8-flash"
     GEMINI_TIMEOUT_SECONDS: float = 180.0
-    JOB_MATCH_TIMEOUT_SECONDS: float = 25.0
+    JOB_MATCH_TIMEOUT_SECONDS: float = 75.0
+
+    # Groq job-matching agent
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    GROQ_TIMEOUT_SECONDS: float = 45.0
 
     class Config:
         case_sensitive = True

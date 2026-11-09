@@ -169,7 +169,8 @@ JOB DESCRIPTION
                 response_schema=AnalysisReport,
             )
             async with asyncio.timeout(settings.JOB_MATCH_TIMEOUT_SECONDS):
-                for attempt in range(3):
+                delays = [2, 4, 8]
+                for attempt in range(4):
                     try:
                         response = await client.aio.models.generate_content(
                             model=settings.GEMINI_MODEL,
@@ -180,12 +181,12 @@ JOB DESCRIPTION
                     except errors.APIError as exc:
                         if (
                             exc.code not in _RETRYABLE_GEMINI_STATUS_CODES
-                            or attempt == 2
+                            or attempt == 3
                         ):
                             raise
-                        delay = 2**attempt
+                        delay = delays[attempt]
                         logger.warning(
-                            "Retryable Gemini error %s; retrying in %ss (attempt %s/3)",
+                            "Retryable Gemini error %s; retrying in %ss (attempt %s/4)",
                             exc.code,
                             delay,
                             attempt + 2,
@@ -201,11 +202,16 @@ JOB DESCRIPTION
             raise
         except errors.APIError as exc:
             logger.warning("Gemini API error (%s): %s", exc.code, exc.message)
+            if exc.code == 503 or "high demand" in str(exc.message).lower():
+                raise JobMatchingError(
+                    "Google's AI servers are temporarily experiencing high demand. "
+                    "Please wait a few seconds and try again."
+                ) from exc
             raise JobMatchingError(f"Gemini request failed: {exc.message}") from exc
         except TimeoutError as exc:
             logger.warning("Gemini analysis exceeded the application deadline")
             raise JobMatchingTimeoutError(
-                "Gemini did not respond within 25 seconds. Please try again."
+                f"Gemini did not respond within {int(settings.JOB_MATCH_TIMEOUT_SECONDS)} seconds. Please try again."
             ) from exc
         except (json.JSONDecodeError, ValueError) as exc:
             logger.exception("Gemini returned an invalid structured response")

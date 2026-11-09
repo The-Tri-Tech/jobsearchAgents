@@ -38,10 +38,10 @@ class JdMatcherService {
             },
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 90));
     } on TimeoutException {
       throw Exception(
-          'Gemini did not respond within 30 seconds. Please try again.');
+          'Analysis timed out after 90 seconds. Try pasting the JD text directly instead of using a URL.');
     }
 
     if (response.statusCode == 200) {

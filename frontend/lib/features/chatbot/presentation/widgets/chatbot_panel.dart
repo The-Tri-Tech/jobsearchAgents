@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import '../../data/datasources/chat_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Message model
@@ -88,6 +89,7 @@ class ChatbotPanel extends StatefulWidget {
 }
 
 class _ChatbotPanelState extends State<ChatbotPanel> {
+  final ChatService _chatService = ChatService();
   final List<_ChatMessage> _messages = [];
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -136,13 +138,30 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
     });
     _scrollToBottom();
 
-    // Simulate bot typing delay
-    await Future.delayed(const Duration(milliseconds: 900));
+    String reply;
+    try {
+      final history = _messages
+          .sublist(0, _messages.length - 1)
+          .map((m) => {
+                'role': m.sender == _Sender.user ? 'user' : 'assistant',
+                'content': m.text,
+              })
+          .toList();
+
+      reply = await _chatService.sendMessage(
+        message: text,
+        history: history,
+      );
+    } catch (_) {
+      // Graceful fallback to local tips if backend / LLM is unreachable
+      await Future.delayed(const Duration(milliseconds: 600));
+      reply = _getMockResponse(text);
+    }
 
     if (!mounted) return;
     setState(() {
       _messages.add(_ChatMessage(
-        text: _getMockResponse(text),
+        text: reply,
         sender: _Sender.bot,
       ));
       _isBotTyping = false;
