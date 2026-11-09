@@ -29,6 +29,7 @@ class RecommendedRoleModel {
 }
 
 class AnalysisReportModel {
+  final String jobTitle;
   final String resumeUsed;
   final String jdSource;
   final int shortlistingChance;
@@ -43,6 +44,7 @@ class AnalysisReportModel {
   final List<RecommendedRoleModel> recommendedRoles;
 
   const AnalysisReportModel({
+    this.jobTitle = 'Target Role',
     required this.resumeUsed,
     required this.jdSource,
     required this.shortlistingChance,
@@ -54,23 +56,35 @@ class AnalysisReportModel {
     required this.recommendedRoles,
   });
 
-  factory AnalysisReportModel.fromJson(Map<String, dynamic> j) =>
-      AnalysisReportModel(
-        resumeUsed: j['resume_used'] ?? '',
-        jdSource: j['jd_source'] ?? 'text',
-        shortlistingChance: (j['shortlisting_chance'] ?? 0) as int,
-        matchedSkills: (j['matched_skills'] as List? ?? [])
-            .map((e) => MatchedSkillModel.fromJson(e))
-            .toList(),
-        missingSkills: (j['missing_skills'] as List? ?? [])
-            .map((e) => MissingSkillModel.fromJson(e))
-            .toList(),
-        overallScore: (j['overall_score'] ?? 0) as int,
-        summaryTitle: j['summary_title'] ?? '',
-        summaryParagraphs:
-            (j['summary_paragraphs'] as List? ?? []).cast<String>(),
-        recommendedRoles: (j['recommended_roles'] as List? ?? [])
-            .map((e) => RecommendedRoleModel.fromJson(e))
-            .toList(),
-      );
+  factory AnalysisReportModel.fromJson(Map<String, dynamic> j) {
+    final rawJobTitle = (j['job_title'] as String?)?.trim();
+    final recRoles = (j['recommended_roles'] as List? ?? [])
+        .map((e) => RecommendedRoleModel.fromJson(e))
+        .toList();
+    final defaultRole =
+        recRoles.isNotEmpty ? recRoles.first.title : 'Target Role';
+    final jobTitle = (rawJobTitle != null &&
+            rawJobTitle.isNotEmpty &&
+            rawJobTitle != 'Target Role')
+        ? rawJobTitle
+        : defaultRole;
+
+    return AnalysisReportModel(
+      jobTitle: jobTitle,
+      resumeUsed: j['resume_used'] ?? '',
+      jdSource: j['jd_source'] ?? 'text',
+      shortlistingChance: (j['shortlisting_chance'] ?? 0) as int,
+      matchedSkills: (j['matched_skills'] as List? ?? [])
+          .map((e) => MatchedSkillModel.fromJson(e))
+          .toList(),
+      missingSkills: (j['missing_skills'] as List? ?? [])
+          .map((e) => MissingSkillModel.fromJson(e))
+          .toList(),
+      overallScore: (j['overall_score'] ?? 0) as int,
+      summaryTitle: j['summary_title'] ?? '',
+      summaryParagraphs:
+          (j['summary_paragraphs'] as List? ?? []).cast<String>(),
+      recommendedRoles: recRoles,
+    );
+  }
 }

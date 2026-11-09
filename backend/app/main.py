@@ -1,7 +1,8 @@
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.db.session import engine, Base
 from app.models import follow_up, jd_analysis, user  # ensure models are registered
@@ -42,6 +43,14 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.get("/health")
 def health_check():
     return {"status": "ok", "app": settings.PROJECT_NAME}
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled server exception at %s: %s", request.url, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"},
+    )
 
 if __name__ == "__main__":
     import uvicorn

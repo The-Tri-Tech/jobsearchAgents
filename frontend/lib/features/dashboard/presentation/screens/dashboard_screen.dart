@@ -996,7 +996,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(followUp.reportTitle,
+                            Text(_cleanFollowUpJobTitle(followUp.reportTitle),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -1039,6 +1039,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  String _cleanFollowUpJobTitle(String title) {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return 'Target Role';
+
+    final lower = trimmed.toLowerCase();
+    if (lower.contains('java/spring') || lower.contains('java / spring')) {
+      return 'Java / Spring Developer';
+    }
+    if (lower.contains('backend-focused') ||
+        lower.contains('backend‑focused') ||
+        lower.contains('backend foundations')) {
+      return 'Backend Software Engineer';
+    }
+    if (lower.contains('entry-level') ||
+        lower.contains('graduate, missing') ||
+        lower.contains('lacking required')) {
+      if (lower.contains('python')) {
+        return 'Python Developer';
+      }
+      return 'Software Engineer';
+    }
+
+    return trimmed;
   }
 
   String _formatDashboardDate(DateTime date) {

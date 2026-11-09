@@ -317,3 +317,28 @@ def test_endpoint_uses_groq_when_provider_is_groq(tmp_path, monkeypatch):
     assert result.resume_used == "resume_groq.docx"
     assert result.summary_title == "Analyzed by Groq"
 
+
+def test_persist_analysis_uses_job_title():
+    class FakeUser:
+        id = 1
+
+    class FakeSession:
+        def __init__(self):
+            self.added = []
+
+        def add(self, item):
+            self.added.append(item)
+
+        def commit(self):
+            pass
+
+    db = FakeSession()
+    user = FakeUser()
+    report = _report().model_copy(update={"job_title": "Senior Python Lead"})
+    jd_matcher._persist_analysis(db, user, report, "resume.pdf", "text")
+
+    assert len(db.added) == 1
+    assert db.added[0].role_title == "Senior Python Lead"
+    assert db.added[0].match_score == 74
+
+

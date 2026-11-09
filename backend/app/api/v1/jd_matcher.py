@@ -139,6 +139,12 @@ async def analyse_jd(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error analyzing JD: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred during analysis: {str(exc)}",
+        ) from exc
 
 
 def _persist_analysis(
@@ -152,8 +158,15 @@ def _persist_analysis(
     if not user_id or not hasattr(db, "add"):
         return
     try:
-        role_title = report.summary_title or (
-            report.recommended_roles[0].title if report.recommended_roles else "Target Role"
+        extracted_title = getattr(report, "job_title", "").strip()
+        role_title = (
+            extracted_title
+            if extracted_title and extracted_title != "Target Role"
+            else (
+                report.recommended_roles[0].title
+                if report.recommended_roles
+                else (report.summary_title or "Target Role")
+            )
         )
         record = JdAnalysis(
             user_id=user_id,

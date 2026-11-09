@@ -187,6 +187,14 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   Future<void> _showFollowUpDialog(AnalysisReportModel report) async {
     DateTime selectedDate = DateTime.now();
     int selectedDays = 3;
+    final initialTitle =
+        report.jobTitle.isNotEmpty && report.jobTitle != 'Target Role'
+            ? report.jobTitle
+            : (report.recommendedRoles.isNotEmpty
+                ? report.recommendedRoles.first.title
+                : 'Target Job Role');
+    final titleController = TextEditingController(text: initialTitle);
+
     final selection = await showDialog<_FollowUpSelection>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -201,10 +209,39 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Choose the application date and when you want to follow up.',
+                  'Set the job title and follow-up timeline for your dashboard.',
                   style: TextStyle(fontSize: 13, color: widget.textSecondary),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
+                Text('Job Title / Role',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textPrimary)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: titleController,
+                  style: TextStyle(color: widget.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Senior Software Engineer',
+                    hintStyle: TextStyle(
+                        color: widget.textSecondary.withOpacity(0.6)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: widget.cardBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide:
+                          BorderSide(color: widget.textPrimary, width: 1.5),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Text('Application date',
                     style: TextStyle(
                         fontSize: 13,
@@ -233,7 +270,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                     alignment: Alignment.centerLeft,
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 Text('Follow up after',
                     style: TextStyle(
                         fontSize: 13,
@@ -279,10 +316,15 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                   Text('Cancel', style: TextStyle(color: widget.textSecondary)),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(
-                dialogContext,
-                _FollowUpSelection(selectedDate, selectedDays),
-              ),
+              onPressed: () {
+                final chosenTitle = titleController.text.trim().isNotEmpty
+                    ? titleController.text.trim()
+                    : initialTitle;
+                Navigator.pop(
+                  dialogContext,
+                  _FollowUpSelection(chosenTitle, selectedDate, selectedDays),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: widget.textPrimary,
                 foregroundColor: widget.cardBg,
@@ -298,7 +340,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     setState(() => _schedulingFollowUp = true);
     try {
       await _matcherService.createFollowUp(
-        reportTitle: report.summaryTitle,
+        reportTitle: selection.jobTitle,
         resumeFilename: report.resumeUsed,
         applicationDate: selection.date,
         followUpAfterDays: selection.days,
@@ -1285,8 +1327,9 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
 }
 
 class _FollowUpSelection {
+  final String jobTitle;
   final DateTime date;
   final int days;
 
-  const _FollowUpSelection(this.date, this.days);
+  const _FollowUpSelection(this.jobTitle, this.date, this.days);
 }

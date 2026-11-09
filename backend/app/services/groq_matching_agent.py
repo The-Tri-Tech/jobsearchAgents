@@ -55,6 +55,7 @@ class GroqMatchingAgent:
             "You are SkillBridge's evidence-based job matching agent. "
             "Analyze the candidate resume against the job description and return your analysis strictly as a JSON object matching this schema:\n"
             "{\n"
+            '  "job_title": "<target job role title extracted from the Job Description, e.g. Senior Software Engineer or Java Developer>",\n'
             '  "shortlisting_chance": <int 0-100>,\n'
             '  "overall_score": <int 0-100>,\n'
             '  "summary_title": "<concise summary header>",\n'
@@ -117,6 +118,10 @@ JOB DESCRIPTION:
             parsed_json = json.loads(raw_text)
             parsed_json["resume_used"] = resume_filename
             parsed_json["jd_source"] = jd_source
+            if not parsed_json.get("job_title") and parsed_json.get("recommended_roles"):
+                parsed_json["job_title"] = parsed_json["recommended_roles"][0].get("title", "Target Role")
+            elif not parsed_json.get("job_title"):
+                parsed_json["job_title"] = "Target Role"
 
             report = AnalysisReport.model_validate(parsed_json)
 

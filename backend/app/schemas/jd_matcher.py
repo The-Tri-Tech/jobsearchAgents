@@ -26,6 +26,7 @@ class RecommendedRole(BaseModel):
 
 
 class AnalysisReport(BaseModel):
+    job_title: str = Field(default="", max_length=120)
     resume_used: str
     jd_source: Literal["url", "text"]
     shortlisting_chance: int = Field(ge=0, le=100)

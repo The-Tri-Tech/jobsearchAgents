@@ -4,6 +4,7 @@ from app.schemas.jd_matcher import AnalysisReport
 def mock_job_match_report(resume_filename: str, jd_source: str) -> AnalysisReport:
     """Return deterministic development data without calling Gemini."""
     return AnalysisReport(
+        job_title="Python Backend Engineer",
         resume_used=resume_filename,
         jd_source=jd_source,
         shortlisting_chance=72,
