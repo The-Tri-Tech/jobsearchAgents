@@ -80,7 +80,9 @@ TARGET JOB DESCRIPTION:
                 temperature=0.3,
                 response_format={"type": "json_object"},
             )
-            raw = response.choices[0].message.content or ""
+            raw = (response.choices[0].message.content or "").strip()
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
             return GenerateQuizResponse.model_validate_json(raw)
         except GroqAPIError as exc:
             err_msg = getattr(exc, "message", str(exc))
@@ -116,7 +118,10 @@ TARGET JOB DESCRIPTION:
             if response.parsed:
                 return GenerateQuizResponse.model_validate(response.parsed)
             elif response.text:
-                return GenerateQuizResponse.model_validate_json(response.text)
+                raw = response.text.strip()
+                if raw.startswith("```"):
+                    raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+                return GenerateQuizResponse.model_validate_json(raw)
             return self._fallback_quiz()
         except Exception as exc:
             logger.warning("Gemini quiz generation error: %s", exc)

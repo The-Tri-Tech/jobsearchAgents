@@ -133,12 +133,13 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       }
 
       if (host.contains('linkedin.com')) {
-        setState(() => _errorMessage =
-            'LinkedIn requires a login to view job postings and blocks automated URL analysis. Please copy the job description text and use "Paste JD Text" instead.');
-        return;
-      }
-
-      if (host.contains('indeed.com') ||
+        final hasJobId = RegExp(r'\d{6,}').hasMatch(normalized);
+        if (!hasJobId) {
+          setState(() => _errorMessage =
+              'Please enter a specific LinkedIn job link (e.g. https://www.linkedin.com/jobs/view/1234567890).');
+          return;
+        }
+      } else if (host.contains('indeed.com') ||
           host.contains('glassdoor.com') ||
           host.contains('naukri.com') ||
           host.contains('ziprecruiter.com')) {

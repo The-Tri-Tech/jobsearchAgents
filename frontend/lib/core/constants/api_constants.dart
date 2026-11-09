@@ -20,4 +20,8 @@ class ApiConstants {
 
   // Chatbot
   static const String chatEndpoint = "$baseUrl/chat";
+
+  // JD Evaluation
+  static const String jdEvaluationQuizEndpoint =
+      "$baseUrl/jd-evaluation/generate-quiz";
 }

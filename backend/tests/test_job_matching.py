@@ -195,9 +195,12 @@ def test_url_safety_and_html_cleanup():
     assert _html_to_text("<h1>Python &amp; APIs</h1><script>ignore()</script>") == "Python & APIs"
 
 
-def test_validate_jd_url_rejects_linkedin_and_invalid():
+def test_validate_jd_url_accepts_linkedin_jobs_and_rejects_invalid():
+    valid_linkedin = jd_matcher.validate_jd_url("https://www.linkedin.com/jobs/view/4440758187/")
+    assert "4440758187" in valid_linkedin
+
     with pytest.raises(HTTPException) as exc1:
-        jd_matcher.validate_jd_url("https://www.linkedin.com/jobs/view/123456")
+        jd_matcher.validate_jd_url("https://www.linkedin.com/feed")
     assert exc1.value.status_code == 422
     assert "LinkedIn" in exc1.value.detail
 

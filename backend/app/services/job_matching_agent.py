@@ -52,9 +52,109 @@ def _html_to_text(content: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(content)).strip()
 
 
+async def fetch_linkedin_job_description(url: str) -> str:
+    """Fetch public LinkedIn job posting using LinkedIn's guest job endpoint."""
+    job_id_match = (
+        re.search(r"/view/(?:.*?(\d+))", url)
+        or re.search(r"currentJobId=(\d+)", url)
+        or re.search(r"(\d{8,})", url)
+    )
+    if not job_id_match:
+        raise JobMatchingError(
+            "Could not extract a valid Job ID from this LinkedIn URL. "
+            "Please provide a link in the format https://www.linkedin.com/jobs/view/<id> or paste the text directly."
+        )
+
+    job_id = job_id_match.group(1)
+    guest_url = f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
+            resp = await client.get(guest_url, follow_redirects=True)
+            if resp.status_code == 404:
+                raise JobMatchingError(
+                    "This LinkedIn job posting could not be found (it may be closed or private). "
+                    "Please copy and paste the job description text into 'Paste JD Text' instead."
+                )
+            resp.raise_for_status()
+
+            raw_html = resp.text
+
+            title_match = re.search(
+                r'<h2 class="top-card-layout__title[^"]*"[^>]*>(.*?)</h2>',
+                raw_html,
+                re.DOTALL,
+            ) or re.search(r"<h1[^>]*>(.*?)</h1>", raw_html, re.DOTALL)
+            title = (
+                re.sub(r"<[^>]+>", "", title_match.group(1)).strip()
+                if title_match
+                else "Target Job"
+            )
+
+            comp_match = re.search(
+                r'<a class="topcard__org-name-link[^"]*"[^>]*>(.*?)</a>',
+                raw_html,
+                re.DOTALL,
+            )
+            company = (
+                re.sub(r"<[^>]+>", "", comp_match.group(1)).strip()
+                if comp_match
+                else ""
+            )
+
+            desc_match = re.search(
+                r'<div class="show-more-less-html__markup[^"]*"[^>]*>(.*?)</div>',
+                raw_html,
+                re.DOTALL,
+            )
+            if desc_match:
+                desc_text = re.sub(
+                    r"\s+",
+                    " ",
+                    html.unescape(re.sub(r"<[^>]+>", " ", desc_match.group(1))),
+                ).strip()
+            else:
+                desc_text = _html_to_text(raw_html)
+
+            if len(desc_text) < 50:
+                raise JobMatchingError(
+                    "The LinkedIn job posting did not contain readable description text. "
+                    "Please copy and paste the job description text into 'Paste JD Text' instead."
+                )
+
+            header = f"{title} at {company}\n\n" if company else f"{title}\n\n"
+            return (header + desc_text)[:80_000]
+
+    except JobMatchingError:
+        raise
+    except Exception as exc:
+        logger.warning("Error fetching LinkedIn job %s: %s", job_id, exc)
+        raise JobMatchingError(
+            "Could not fetch the LinkedIn job description. "
+            "Please copy and paste the job description text into 'Paste JD Text' instead."
+        ) from exc
+
+
 async def fetch_job_description(url: str) -> str:
     """Fetch a public job page with bounded redirects and response size."""
     current_url = url.strip()
+    parsed_host = (urlparse(current_url).hostname or "").lower()
+    if "linkedin.com" in parsed_host:
+        return await fetch_linkedin_job_description(current_url)
+
+    if any(site in parsed_host for site in ["indeed.com", "glassdoor.com", "naukri.com"]):
+        raise JobMatchingError(
+            f"Job boards like {parsed_host} require login or block automated analysis. "
+            "Please copy and paste the job description text into 'Paste JD Text' instead."
+        )
+
     headers = {"User-Agent": "SkillBridge-JobMatcher/1.0"}
     try:
         async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:

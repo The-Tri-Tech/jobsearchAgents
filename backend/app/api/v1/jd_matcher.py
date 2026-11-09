@@ -1,3 +1,4 @@
+import re
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -23,7 +24,6 @@ from app.services.mock_job_match import mock_job_match_report
 router = APIRouter(prefix="/jd-matcher", tags=["JD Matcher"])
 
 BLOCKED_JOB_DOMAINS = {
-    "linkedin.com": "LinkedIn",
     "indeed.com": "Indeed",
     "glassdoor.com": "Glassdoor",
     "naukri.com": "Naukri",
@@ -43,6 +43,14 @@ def validate_jd_url(url: str) -> str:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Please provide a valid job posting URL (e.g. https://company.com/jobs/123).",
         )
+
+    if "linkedin.com" in hostname:
+        if not re.search(r"(\d{6,})", cleaned):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Please provide a specific LinkedIn job posting URL (e.g. https://www.linkedin.com/jobs/view/1234567890).",
+            )
+        return cleaned
 
     for domain, site_name in BLOCKED_JOB_DOMAINS.items():
         if hostname == domain or hostname.endswith("." + domain):
