@@ -1148,7 +1148,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                       color: widget.textPrimary),
                 ),
               ),
-              _buildApplicationStatusDropdown(r),
+              _buildApplicationStatusButtons(r),
               const SizedBox(width: 12),
               ElevatedButton.icon(
                 onPressed: _schedulingFollowUp || _followUpEnabled
@@ -1263,88 +1263,147 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     }
   }
 
-  Widget _buildApplicationStatusDropdown(AnalysisReportModel r) {
+  Widget _buildApplicationStatusButtons(AnalysisReportModel r) {
     final isApplied = _applicationStatus == 'applied';
     const appliedColor = Color(0xFF16A34A);
+    const notAppliedColor = Color(0xFF334155);
 
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: isApplied
-            ? appliedColor.withValues(alpha: 0.1)
-            : widget.cardBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isApplied ? appliedColor : widget.cardBorder,
-          width: 1.2,
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _applicationStatus,
-          dropdownColor: widget.cardBg,
-          borderRadius: BorderRadius.circular(10),
-          icon: _updatingStatus
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  size: 18,
-                  color: isApplied ? appliedColor : widget.textSecondary,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Not Applied Button ──────────────────────────────────────────
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: _updatingStatus
+                ? null
+                : () {
+                    if (_applicationStatus != 'not_applied') {
+                      _onApplicationStatusChanged(r, 'not_applied');
+                    }
+                  },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: !isApplied ? notAppliedColor : widget.cardBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: !isApplied ? const Color(0xFF475569) : widget.cardBorder,
+                  width: !isApplied ? 1.6 : 1.2,
                 ),
-          items: [
-            DropdownMenuItem(
-              value: 'not_applied',
+                boxShadow: !isApplied
+                    ? [
+                        BoxShadow(
+                          color: notAppliedColor.withValues(alpha: 0.28),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.radio_button_unchecked,
-                      size: 14, color: widget.textSecondary),
-                  const SizedBox(width: 8),
+                  Icon(
+                    !isApplied
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 15,
+                    color: !isApplied ? Colors.white : widget.textSecondary,
+                  ),
+                  const SizedBox(width: 7),
                   Text(
                     'Not Applied',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: widget.textPrimary,
+                      fontWeight: !isApplied ? FontWeight.w700 : FontWeight.w600,
+                      color: !isApplied ? Colors.white : widget.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            DropdownMenuItem(
-              value: 'applied',
+          ),
+        ),
+        const SizedBox(width: 8),
+
+        // ── Applied Button ──────────────────────────────────────────────
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: _updatingStatus
+                ? null
+                : () {
+                    if (_applicationStatus != 'applied') {
+                      _onApplicationStatusChanged(r, 'applied');
+                    }
+                  },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 15),
+              decoration: BoxDecoration(
+                color: isApplied
+                    ? appliedColor
+                    : appliedColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isApplied
+                      ? const Color(0xFF15803D)
+                      : appliedColor.withValues(alpha: 0.45),
+                  width: isApplied ? 1.8 : 1.2,
+                ),
+                boxShadow: isApplied
+                    ? [
+                        BoxShadow(
+                          color: appliedColor.withValues(alpha: 0.38),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : null,
+              ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.check_circle_rounded,
-                      size: 16, color: appliedColor),
-                  const SizedBox(width: 8),
+                  if (_updatingStatus && isApplied) ...[
+                    const SizedBox(
+                      width: 13,
+                      height: 13,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                  ] else ...[
+                    Icon(
+                      isApplied
+                          ? Icons.check_circle_rounded
+                          : Icons.check_circle_outline_rounded,
+                      size: 15,
+                      color: isApplied ? Colors.white : appliedColor,
+                    ),
+                    const SizedBox(width: 7),
+                  ],
                   Text(
                     'Applied',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: isApplied ? appliedColor : widget.textPrimary,
+                      fontWeight: isApplied ? FontWeight.w700 : FontWeight.w600,
+                      color: isApplied ? Colors.white : appliedColor,
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-          onChanged: _updatingStatus
-              ? null
-              : (val) {
-                  if (val != null && val != _applicationStatus) {
-                    _onApplicationStatusChanged(r, val);
-                  }
-                },
+          ),
         ),
-      ),
+      ],
     );
   }
 
