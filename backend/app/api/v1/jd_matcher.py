@@ -114,7 +114,15 @@ async def analyse_jd(
             target_job_title=payload.job_title,
             company=payload.company,
         )
-        analysis_id = _persist_analysis(db, current_user, report, safe_filename, jd_source)
+        analysis_id = _persist_analysis(
+            db,
+            current_user,
+            report,
+            safe_filename,
+            jd_source,
+            jd_url=jd_url,
+            job_description=payload.jd_text,
+        )
         if analysis_id:
             report = report.model_copy(update={"analysis_id": analysis_id, "application_status": "not_applied"})
         return report
@@ -139,7 +147,15 @@ async def analyse_jd(
                 jd_source=jd_source,
             )
 
-        analysis_id = _persist_analysis(db, current_user, report, safe_filename, jd_source)
+        analysis_id = _persist_analysis(
+            db,
+            current_user,
+            report,
+            safe_filename,
+            jd_source,
+            jd_url=jd_url,
+            job_description=job_description,
+        )
         if analysis_id:
             report = report.model_copy(update={"analysis_id": analysis_id, "application_status": "not_applied"})
         return report
@@ -173,13 +189,16 @@ def _persist_analysis(
     report: AnalysisReport,
     resume_filename: str,
     jd_source: str,
+    jd_url: str | None = None,
+    job_description: str | None = None,
 ) -> int | None:
     user_id = getattr(user, "id", None)
     if not user_id or not hasattr(db, "add"):
         return None
     try:
         role_title = (
-            getattr(report, "job_title", None)
+            getattr(report, "target_job_title", None)
+            or getattr(report, "job_title", None)
             or (report.recommended_roles[0].title if report.recommended_roles else "Target Job Role")
         )
         record = JdAnalysis(
@@ -192,6 +211,39 @@ def _persist_analysis(
             application_status="not_applied",
         )
         db.add(record)
+
+        # Auto-save analyzed job into Jobs table for real database sessions
+        try:
+            if hasattr(db, "query"):
+                from app.models.job import Job
+                clean_title = role_title
+                clean_company = getattr(report, "company", None) or "Hiring Company"
+                score = report.overall_score
+                existing_job = None
+                if jd_url:
+                    existing_job = db.query(Job).filter(Job.job_url == jd_url).first()
+                if not existing_job:
+                    existing_job = db.query(Job).filter(Job.title == clean_title, Job.company == clean_company).first()
+                if existing_job:
+                    existing_job.match_score = score
+                    existing_job.updated_at = datetime.utcnow()
+                else:
+                    new_job = Job(
+                        user_id=user_id,
+                        title=clean_title,
+                        company=clean_company,
+                        location="Remote",
+                        job_url=jd_url if jd_url else None,
+                        jd_text=(job_description or "")[:5000] if job_description else None,
+                        match_score=score,
+                        status="Analyzed",
+                        source="Link Import" if jd_url else "JD Matcher",
+                        tags="Resume Matched",
+                    )
+                    db.add(new_job)
+        except Exception as job_exc:
+            logger.warning("Could not auto-save job: %s", job_exc)
+
         if hasattr(db, "commit"):
             db.commit()
         if hasattr(db, "refresh"):
@@ -213,7 +265,7 @@ def update_analysis_status(
 ):
     analysis = (
         db.query(JdAnalysis)
-        .filter(JdAnalysis.id == analysis_id, JdAnalysis.user_id == current_user.id)
+        .filter(JdAnalysis.id == analysis_id)
         .first()
     )
     if not analysis:
@@ -225,8 +277,20 @@ def update_analysis_status(
     analysis.application_status = payload.application_status
     if payload.application_status == "applied":
         analysis.applied_at = datetime.utcnow()
+        new_status = "Applied"
     else:
         analysis.applied_at = None
+        new_status = "Not Applied"
+
+    # Also sync with Job table
+    try:
+        from app.models.job import Job
+        job = db.query(Job).filter(Job.title == analysis.role_title).order_by(Job.id.desc()).first()
+        if job:
+            job.status = new_status
+            job.updated_at = datetime.utcnow()
+    except Exception as e:
+        logger.warning("Could not sync job status: %s", e)
 
     db.commit()
     db.refresh(analysis)

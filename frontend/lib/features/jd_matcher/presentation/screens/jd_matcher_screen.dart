@@ -12,6 +12,7 @@ class JdMatcherScreen extends StatefulWidget {
   final Color textPrimary;
   final Color textSecondary;
   final VoidCallback? onNavigateToResume;
+  final VoidCallback? onFollowUpCreated;
   final String? initialJdText;
 
   const JdMatcherScreen({
@@ -23,6 +24,7 @@ class JdMatcherScreen extends StatefulWidget {
     required this.textPrimary,
     required this.textSecondary,
     this.onNavigateToResume,
+    this.onFollowUpCreated,
     this.initialJdText,
   });
 
@@ -50,6 +52,10 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   bool _analysing = false;
   String? _errorMessage;
   AnalysisReportModel? _report;
+  String _applicationStatus = 'not_applied';
+  bool _updatingStatus = false;
+  bool _schedulingFollowUp = false;
+  bool _followUpEnabled = false;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
@@ -146,6 +152,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       );
       setState(() {
         _report = result;
+        _applicationStatus = result.applicationStatus;
       });
       _fadeController.forward(from: 0);
     } catch (e) {
@@ -161,12 +168,376 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     }
   }
 
+  Future<void> _onApplicationStatusChanged(AnalysisReportModel r, String newStatus) async {
+    final aid = r.analysisId;
+    if (aid == null) return;
+    setState(() {
+      _updatingStatus = true;
+      _applicationStatus = newStatus;
+    });
+    try {
+      await _matcherService.updateApplicationStatus(analysisId: aid, status: newStatus);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            newStatus == 'applied'
+                ? 'Application status updated: Applied! Marked in Jobs tracker.'
+                : 'Application status updated: Not Applied',
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: newStatus == 'applied'
+              ? const Color(0xFF16A34A)
+              : widget.textPrimary,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update status: $e'),
+          backgroundColor: _accentRed,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingStatus = false);
+      }
+    }
+  }
+
+  Widget _buildApplicationStatusButtons(AnalysisReportModel r) {
+    final isApplied = _applicationStatus == 'applied';
+    const appliedColor = Color(0xFF16A34A);
+    final notAppliedColor = widget.isDarkMode ? const Color(0xFF334155) : const Color(0xFF475467);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Not Applied Button
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: _updatingStatus
+                ? null
+                : () {
+                    if (_applicationStatus != 'not_applied') {
+                      _onApplicationStatusChanged(r, 'not_applied');
+                    }
+                  },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: !isApplied ? notAppliedColor : widget.cardBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: !isApplied ? notAppliedColor : widget.cardBorder,
+                  width: !isApplied ? 1.6 : 1.2,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    !isApplied
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 15,
+                    color: !isApplied ? Colors.white : widget.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Not Applied',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: !isApplied ? FontWeight.w700 : FontWeight.w600,
+                      color: !isApplied ? Colors.white : widget.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+
+        // Applied Button
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: _updatingStatus
+                ? null
+                : () {
+                    if (_applicationStatus != 'applied') {
+                      _onApplicationStatusChanged(r, 'applied');
+                    }
+                  },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: isApplied ? appliedColor : appliedColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isApplied ? const Color(0xFF15803D) : appliedColor.withValues(alpha: 0.45),
+                  width: isApplied ? 1.8 : 1.2,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_updatingStatus && isApplied) ...[
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ] else ...[
+                    Icon(
+                      isApplied
+                          ? Icons.check_circle_rounded
+                          : Icons.check_circle_outline_rounded,
+                      size: 15,
+                      color: isApplied ? Colors.white : appliedColor,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    'Applied',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isApplied ? FontWeight.w700 : FontWeight.w600,
+                      color: isApplied ? Colors.white : appliedColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _resetToInput() {
     setState(() {
       _report = null;
       _errorMessage = null;
+      _schedulingFollowUp = false;
+      _followUpEnabled = false;
     });
     _fadeController.reset();
+  }
+
+  Future<void> _showFollowUpDialog(AnalysisReportModel report) async {
+    DateTime selectedDate = DateTime.now();
+    int selectedDays = 3;
+    final initialTitle =
+        report.jobTitle.isNotEmpty && report.jobTitle != 'Target Role'
+            ? report.jobTitle
+            : (report.recommendedRoles.isNotEmpty
+                ? report.recommendedRoles.first.title
+                : 'Target Job Role');
+    final titleController = TextEditingController(text: initialTitle);
+
+    final selection = await showDialog<_FollowUpSelection>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: widget.cardBg,
+          title: Text('Enable follow-up',
+              style: TextStyle(color: widget.textPrimary)),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Set the job title and follow-up timeline for your dashboard.',
+                  style: TextStyle(fontSize: 13, color: widget.textSecondary),
+                ),
+                const SizedBox(height: 18),
+                Text('Job Title / Role',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textPrimary)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: titleController,
+                  style: TextStyle(color: widget.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Senior Software Engineer',
+                    hintStyle: TextStyle(
+                        color: widget.textSecondary.withOpacity(0.6)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: widget.cardBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide:
+                          BorderSide(color: widget.textPrimary, width: 1.5),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Application date',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textPrimary)),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => selectedDate = picked);
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                  label: Text(_formatDate(selectedDate)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: widget.textPrimary,
+                    side: BorderSide(color: widget.cardBorder),
+                    minimumSize: const Size(double.infinity, 46),
+                    alignment: Alignment.centerLeft,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Follow up after',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textPrimary)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  initialValue: selectedDays,
+                  dropdownColor: widget.cardBg,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: widget.cardBorder),
+                    ),
+                  ),
+                  style: TextStyle(color: widget.textPrimary),
+                  items: [1, 2, 3, 5, 7, 10, 14, 30]
+                      .map((days) => DropdownMenuItem(
+                            value: days,
+                            child: Text('$days ${days == 1 ? 'day' : 'days'}'),
+                          ))
+                      .toList(),
+                  onChanged: (days) =>
+                      setDialogState(() => selectedDays = days ?? 3),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Follow-up date: ${_formatDate(selectedDate.add(Duration(days: selectedDays)))}',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _accentGreen),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child:
+                  Text('Cancel', style: TextStyle(color: widget.textSecondary)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final chosenTitle = titleController.text.trim().isNotEmpty
+                    ? titleController.text.trim()
+                    : initialTitle;
+                Navigator.pop(
+                  dialogContext,
+                  _FollowUpSelection(chosenTitle, selectedDate, selectedDays),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.textPrimary,
+                foregroundColor: widget.cardBg,
+              ),
+              child: const Text('Enable follow-up'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selection == null || !mounted) return;
+
+    setState(() => _schedulingFollowUp = true);
+    try {
+      await _matcherService.createFollowUp(
+        reportTitle: selection.jobTitle,
+        resumeFilename: report.resumeUsed,
+        applicationDate: selection.date,
+        followUpAfterDays: selection.days,
+      );
+      if (!mounted) return;
+      setState(() {
+        _schedulingFollowUp = false;
+        _followUpEnabled = true;
+        _applicationStatus = 'applied';
+      });
+      if (report.analysisId != null) {
+        _matcherService
+            .updateApplicationStatus(
+              analysisId: report.analysisId!,
+              status: 'applied',
+            )
+            .catchError((_) {});
+      }
+      widget.onFollowUpCreated?.call();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Follow-up scheduled for ${_formatDate(selection.date.add(Duration(days: selection.days)))}.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _schedulingFollowUp = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: _accentRed,
+        ),
+      );
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   // ── Colours ────────────────────────────────────────────────────────────────
@@ -593,6 +964,36 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: widget.textPrimary),
+                ),
+              ),
+              const SizedBox(width: 12),
+              _buildApplicationStatusButtons(r),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: _schedulingFollowUp || _followUpEnabled
+                    ? null
+                    : () => _showFollowUpDialog(r),
+                icon: _schedulingFollowUp
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(_followUpEnabled
+                        ? Icons.check_circle_outline
+                        : Icons.notifications_active_outlined),
+                label:
+                    Text(_followUpEnabled ? 'Follow-up enabled' : 'Follow up'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.textPrimary,
+                  foregroundColor: widget.cardBg,
+                  disabledBackgroundColor: _accentGreen.withOpacity(0.12),
+                  disabledForegroundColor: _accentGreen,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
               ),
             ],
@@ -1048,4 +1449,12 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       child: child,
     );
   }
+}
+
+class _FollowUpSelection {
+  final String jobTitle;
+  final DateTime date;
+  final int days;
+
+  const _FollowUpSelection(this.jobTitle, this.date, this.days);
 }

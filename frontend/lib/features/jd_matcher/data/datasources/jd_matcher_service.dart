@@ -96,4 +96,34 @@ class JdMatcherService {
           error['detail'] ?? 'Failed to update application status.');
     }
   }
+
+  Future<void> createFollowUp({
+    required String reportTitle,
+    required String resumeFilename,
+    required DateTime applicationDate,
+    required int followUpAfterDays,
+  }) async {
+    final token = await _getToken();
+    final response = await http.post(
+      Uri.parse(ApiConstants.followUpsEndpoint),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'report_title': reportTitle,
+        'resume_filename': resumeFilename,
+        'application_date': _dateOnly(applicationDate),
+        'follow_up_after_days': followUpAfterDays,
+      }),
+    );
+
+    if (response.statusCode != 201) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['detail'] ?? 'Could not enable follow-up.');
+    }
+  }
+
+  String _dateOnly(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }

@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr
+from app.schemas.follow_up import FollowUpOut
+from app.schemas.reminder import ReminderOut
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -53,3 +55,5 @@ class DashboardOverview(BaseModel):
     metrics: List[StatCard]
     weekly_progress: List[ProgressItem]
     today_tasks: List[TaskItem]
+    follow_ups: List[FollowUpOut] = []
+    reminders: List[ReminderOut] = []
