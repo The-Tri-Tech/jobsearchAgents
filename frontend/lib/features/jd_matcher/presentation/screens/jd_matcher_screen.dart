@@ -3,7 +3,6 @@ import '../../data/datasources/jd_matcher_service.dart';
 import '../../data/models/jd_matcher_model.dart';
 import '../../../resume/data/datasources/resume_service.dart';
 import '../../../resume/data/models/resume_model.dart';
-import '../../../jobs/data/datasources/jobs_service.dart';
 
 class JdMatcherScreen extends StatefulWidget {
   final bool isDarkMode;
@@ -13,7 +12,7 @@ class JdMatcherScreen extends StatefulWidget {
   final Color textPrimary;
   final Color textSecondary;
   final VoidCallback? onNavigateToResume;
-  final VoidCallback? onFollowUpCreated;
+  final String? initialJdText;
 
   const JdMatcherScreen({
     super.key,
@@ -24,7 +23,7 @@ class JdMatcherScreen extends StatefulWidget {
     required this.textPrimary,
     required this.textSecondary,
     this.onNavigateToResume,
-    this.onFollowUpCreated,
+    this.initialJdText,
   });
 
   @override
@@ -46,17 +45,11 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   int _jdInputMode = 0; // 0 = paste text, 1 = url
   final _jdTextController = TextEditingController();
   final _jdUrlController = TextEditingController();
-  final _jobTitleController = TextEditingController();
-  final _companyController = TextEditingController();
 
   // Analysis
   bool _analysing = false;
   String? _errorMessage;
   AnalysisReportModel? _report;
-  bool _schedulingFollowUp = false;
-  bool _followUpEnabled = false;
-  String _applicationStatus = 'not_applied';
-  bool _updatingStatus = false;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
@@ -64,177 +57,35 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 400));
+    if (widget.initialJdText != null && widget.initialJdText!.isNotEmpty) {
+      _jdTextController.text = widget.initialJdText!;
+      _jdInputMode = 0;
+    }
+    _fadeController =
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
     _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
     _loadResumes();
+  }
+
+  @override
+  void didUpdateWidget(covariant JdMatcherScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialJdText != null &&
+        widget.initialJdText != oldWidget.initialJdText &&
+        widget.initialJdText!.isNotEmpty) {
+      _jdTextController.text = widget.initialJdText!;
+      _jdInputMode = 0;
+      _report = null;
+      _errorMessage = null;
+    }
   }
 
   @override
   void dispose() {
     _jdTextController.dispose();
     _jdUrlController.dispose();
-    _jobTitleController.dispose();
-    _companyController.dispose();
     _fadeController.dispose();
     super.dispose();
-  }
-
-  String _toTitleCase(String text) {
-    if (text.isEmpty) return text;
-    return text.split(' ').map((word) {
-      if (word.isEmpty) return word;
-      return word[0].toUpperCase() + word.substring(1).toLowerCase();
-    }).join(' ');
-  }
-
-  void _autoDetectJobDetails() {
-    final url = _jdUrlController.text.trim();
-    final text = _jdTextController.text.trim();
-    String detectedTitle = "";
-    String detectedCompany = "";
-
-    if (url.isNotEmpty) {
-      try {
-        final uri = Uri.parse(url);
-        final host = uri.host.toLowerCase();
-        final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-
-        if (host.contains("linkedin.com")) {
-          for (final seg in segments) {
-            if (seg.toLowerCase().contains("-at-")) {
-              final parts = seg.split("-at-");
-              final compPart = parts.last.split("-").first;
-              if (compPart.isNotEmpty && !RegExp(r'^\d+$').hasMatch(compPart)) {
-                detectedCompany = _toTitleCase(compPart.replaceAll("-", " "));
-              }
-            }
-          }
-        } else if (host.contains("greenhouse.io") && segments.isNotEmpty) {
-          detectedCompany = _toTitleCase(segments[0].replaceAll("-", " "));
-        } else if (host.contains("lever.co") && segments.isNotEmpty) {
-          detectedCompany = _toTitleCase(segments[0].replaceAll("-", " "));
-        } else if (host.contains("ashbyhq.com") && segments.isNotEmpty) {
-          detectedCompany = _toTitleCase(segments[0].replaceAll("-", " "));
-        } else if (host.contains("amazon")) {
-          detectedCompany = "Amazon";
-        } else if (host.contains("google")) {
-          detectedCompany = "Google";
-        } else if (host.contains("microsoft")) {
-          detectedCompany = "Microsoft";
-        } else if (host.contains("apple")) {
-          detectedCompany = "Apple";
-        } else if (host.contains("meta")) {
-          detectedCompany = "Meta";
-        } else if (host.contains("netflix")) {
-          detectedCompany = "Netflix";
-        } else {
-          final parts = host.split(".").where((p) => !["www", "careers", "jobs", "job", "career", "com", "io", "co", "org", "net"].contains(p)).toList();
-          if (parts.isNotEmpty && parts[0].toLowerCase() != "linkedin") {
-            detectedCompany = _toTitleCase(parts[0]);
-          }
-        }
-
-        for (final seg in segments.reversed) {
-          var clean = seg.replaceAll(RegExp(r'-\d+$'), '').replaceAll(RegExp(r'^\d+-'), '');
-          if (clean.toLowerCase().contains("-at-")) {
-            clean = clean.split("-at-").first;
-          }
-          final ignored = ["jobs", "view", "job", "careers", "details", "results", "http", "https", "www", "company"];
-          if (clean.length > 3 && !RegExp(r'^\d+$').hasMatch(clean) && !ignored.contains(clean.toLowerCase())) {
-            final words = clean.replaceAll("-", " ").replaceAll("_", " ");
-            if (RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(words)) {
-              detectedTitle = _toTitleCase(words);
-              break;
-            } else if (detectedTitle.isEmpty && words.toLowerCase() != "https" && words.toLowerCase() != "http") {
-              detectedTitle = _toTitleCase(words);
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    if (text.isNotEmpty) {
-      final firstChunk = text.length > 500 ? text.substring(0, 500) : text;
-      final mAtComp = RegExp(
-        r"([A-Za-z0-9 /&()+.\#\-]{3,80})\s+(?:at|@)\s+([A-Za-z0-9 &.,'-]{2,40})",
-        caseSensitive: false,
-      ).firstMatch(firstChunk);
-      if (mAtComp != null) {
-        final candTitle = mAtComp.group(1)!.trim();
-        final candComp = mAtComp.group(2)!.trim();
-        if (detectedTitle.isEmpty && candTitle.toLowerCase() != "https" && candTitle.toLowerCase() != "http") {
-          detectedTitle = candTitle;
-        }
-        if (detectedCompany.isEmpty && candComp.toLowerCase() != "linkedin") {
-          detectedCompany = candComp;
-        }
-      }
-
-      final lines = text.split("\n").map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-      if (detectedCompany.isEmpty) {
-        for (final l in lines.take(12)) {
-          final mComp = RegExp(r"^(?:Company|Organization|Employer)\s*:\s*([A-Za-z0-9 &.,'-]{2,40})", caseSensitive: false).firstMatch(l);
-          if (mComp != null && mComp.group(1)!.trim().toLowerCase() != "linkedin") {
-            detectedCompany = mComp.group(1)!.trim();
-            break;
-          }
-          final mAbout = RegExp(r"^(?:About|Join|Welcome to)\s+([A-Z][A-Za-z0-9 &.,'-]{1,30})").firstMatch(l);
-          if (mAbout != null) {
-            final c = mAbout.group(1)!.trim();
-            if (!["us", "our", "the role", "this job", "the team", "linkedin"].contains(c.toLowerCase())) {
-              detectedCompany = c;
-              break;
-            }
-          }
-        }
-      }
-
-      if (detectedTitle.isEmpty) {
-        for (final l in lines.take(12)) {
-          final mTitle = RegExp(r'^(?:Job\s*Title|Position|Role|Title)\s*:\s*([A-Za-z0-9 /&()+.\#\-]{3,70})', caseSensitive: false).firstMatch(l);
-          if (mTitle != null && mTitle.group(1)!.trim().toLowerCase() != "https") {
-            detectedTitle = mTitle.group(1)!.trim();
-            break;
-          }
-        }
-        if (detectedTitle.isEmpty) {
-          for (final l in lines.take(8)) {
-            final cleaned = l.replaceAll(RegExp(r'^[#*\-•\d.]+\s*'), '').trim();
-            if (cleaned.length >= 4 && cleaned.length <= 75 && RegExp(r'(developer|engineer|manager|lead|architect|analyst|designer|scientist|intern|specialist)', caseSensitive: false).hasMatch(cleaned)) {
-              if (!cleaned.toLowerCase().startsWith("we are") && !cleaned.toLowerCase().startsWith("looking for") && !cleaned.toLowerCase().startsWith("requirements") && !cleaned.toLowerCase().startsWith("http")) {
-                detectedTitle = cleaned;
-                break;
-              }
-            }
-          }
-        }
-        if (detectedTitle.isEmpty && lines.isNotEmpty) {
-          final first = lines.first.replaceAll(RegExp(r'^[#*\-•\d.]+\s*'), '').trim();
-          if (first.length >= 4 && first.length <= 60 && !first.toLowerCase().startsWith("http") && !first.toLowerCase().startsWith("www")) {
-            detectedTitle = first;
-          }
-        }
-      }
-    }
-
-    if (detectedTitle.toLowerCase() == "https" || detectedTitle.toLowerCase() == "http") {
-      detectedTitle = "";
-    }
-    if (detectedCompany.toLowerCase() == "linkedin") {
-      detectedCompany = "";
-    }
-
-    if (detectedTitle.isNotEmpty && _jobTitleController.text.isEmpty) {
-      setState(() {
-        _jobTitleController.text = detectedTitle;
-      });
-    }
-    if (detectedCompany.isNotEmpty && _companyController.text.isEmpty) {
-      setState(() {
-        _companyController.text = detectedCompany;
-      });
-    }
   }
 
   // ── Data ───────────────────────────────────────────────────────────────────
@@ -243,30 +94,30 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     setState(() => _loadingResumes = true);
     try {
       final list = await _resumeService.listResumes();
-      list.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
       setState(() {
         _resumes = list;
-        if (!list.any((resume) => resume.filename == _selectedResumeFilename)) {
-          _selectedResumeFilename =
-              list.isNotEmpty ? list.first.filename : null;
-        }
         _loadingResumes = false;
+        if (_selectedResumeFilename == null && list.isNotEmpty) {
+          _selectedResumeFilename = list.last.filename;
+        }
       });
     } catch (_) {
       setState(() => _loadingResumes = false);
     }
   }
 
-  ResumeModel? get _selectedResume {
-    if (_selectedResumeFilename == null) return null;
-    for (final resume in _resumes) {
-      if (resume.filename == _selectedResumeFilename) return resume;
+  ResumeModel? get _activeResume {
+    if (_resumes.isEmpty) return null;
+    if (_selectedResumeFilename != null) {
+      try {
+        return _resumes.firstWhere((r) => r.filename == _selectedResumeFilename);
+      } catch (_) {}
     }
-    return null;
+    return _resumes.last;
   }
 
   Future<void> _analyse() async {
-    final resume = _selectedResume;
+    final resume = _activeResume;
     if (resume == null) return;
 
     final jdText = _jdTextController.text.trim();
@@ -276,73 +127,37 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       setState(() => _errorMessage = 'Please paste the Job Description text.');
       return;
     }
-    if (_jdInputMode == 1) {
-      if (jdUrl.isEmpty) {
-        setState(
-            () => _errorMessage = 'Please enter a valid Job Description URL.');
-        return;
-      }
-
-      final normalized = jdUrl.startsWith('http://') || jdUrl.startsWith('https://')
-          ? jdUrl
-          : 'https://$jdUrl';
-
-      final uri = Uri.tryParse(normalized);
-      final host = uri?.host.toLowerCase() ?? '';
-
-      if (uri == null || host.isEmpty || !host.contains('.')) {
-        setState(() => _errorMessage =
-            'Please enter a valid URL (e.g. https://company.com/jobs/123).');
-        return;
-      }
-
-      if (host.contains('linkedin.com')) {
-        final hasJobId = RegExp(r'\d{6,}').hasMatch(normalized);
-        if (!hasJobId) {
-          setState(() => _errorMessage =
-              'Please enter a specific LinkedIn job link (e.g. https://www.linkedin.com/jobs/view/1234567890).');
-          return;
-        }
-      } else if (host.contains('indeed.com') ||
-          host.contains('glassdoor.com') ||
-          host.contains('naukri.com') ||
-          host.contains('ziprecruiter.com')) {
-        setState(() => _errorMessage =
-            'This job board requires authentication or blocks page reading. Please copy the job description text into "Paste JD Text" instead.');
-        return;
-      }
+    if (_jdInputMode == 1 && jdUrl.isEmpty) {
+      setState(() => _errorMessage = 'Please enter a valid Job Description URL.');
+      return;
     }
 
     setState(() {
       _analysing = true;
       _errorMessage = null;
       _report = null;
-      _followUpEnabled = false;
-      _applicationStatus = 'not_applied';
     });
 
     try {
-      final userTitle = _jobTitleController.text.trim();
-      final userCompany = _companyController.text.trim();
-
       final result = await _matcherService.analyse(
         jdText: _jdInputMode == 0 ? jdText : null,
         jdUrl: _jdInputMode == 1 ? jdUrl : null,
         resumeFilename: resume.filename,
-        jobTitle: userTitle.isNotEmpty ? userTitle : null,
-        company: userCompany.isNotEmpty ? userCompany : null,
       );
       setState(() {
         _report = result;
-        _applicationStatus = result.applicationStatus;
-        _analysing = false;
       });
       _fadeController.forward(from: 0);
     } catch (e) {
       setState(() {
         _errorMessage = e.toString().replaceFirst('Exception: ', '');
-        _analysing = false;
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _analysing = false;
+        });
+      }
     }
   }
 
@@ -350,224 +165,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     setState(() {
       _report = null;
       _errorMessage = null;
-      _followUpEnabled = false;
-      _applicationStatus = 'not_applied';
     });
-    _jobTitleController.clear();
-    _companyController.clear();
     _fadeController.reset();
-  }
-
-  Future<void> _showFollowUpDialog(AnalysisReportModel report) async {
-    DateTime selectedDate = DateTime.now();
-    int selectedDays = 3;
-    final initialTitle =
-        report.jobTitle.isNotEmpty && report.jobTitle != 'Target Role'
-            ? report.jobTitle
-            : (report.recommendedRoles.isNotEmpty
-                ? report.recommendedRoles.first.title
-                : 'Target Job Role');
-    final titleController = TextEditingController(text: initialTitle);
-
-    final selection = await showDialog<_FollowUpSelection>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: widget.cardBg,
-          title: Text('Enable follow-up',
-              style: TextStyle(color: widget.textPrimary)),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Set the job title and follow-up timeline for your dashboard.',
-                  style: TextStyle(fontSize: 13, color: widget.textSecondary),
-                ),
-                const SizedBox(height: 18),
-                Text('Job Title / Role',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.textPrimary)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: titleController,
-                  style: TextStyle(color: widget.textPrimary, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'e.g. Senior Software Engineer',
-                    hintStyle: TextStyle(
-                        color: widget.textSecondary.withOpacity(0.6)),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: widget.cardBorder),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide:
-                          BorderSide(color: widget.textPrimary, width: 1.5),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text('Application date',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.textPrimary)),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate,
-                      firstDate:
-                          DateTime.now().subtract(const Duration(days: 365)),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (picked != null) {
-                      setDialogState(() => selectedDate = picked);
-                    }
-                  },
-                  icon: const Icon(Icons.calendar_today_outlined, size: 17),
-                  label: Text(_formatDate(selectedDate)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: widget.textPrimary,
-                    side: BorderSide(color: widget.cardBorder),
-                    minimumSize: const Size(double.infinity, 46),
-                    alignment: Alignment.centerLeft,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text('Follow up after',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.textPrimary)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<int>(
-                  initialValue: selectedDays,
-                  dropdownColor: widget.cardBg,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: widget.cardBorder),
-                    ),
-                  ),
-                  style: TextStyle(color: widget.textPrimary),
-                  items: [1, 2, 3, 5, 7, 10, 14, 30]
-                      .map((days) => DropdownMenuItem(
-                            value: days,
-                            child: Text('$days ${days == 1 ? 'day' : 'days'}'),
-                          ))
-                      .toList(),
-                  onChanged: (days) =>
-                      setDialogState(() => selectedDays = days ?? 3),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Follow-up date: ${_formatDate(selectedDate.add(Duration(days: selectedDays)))}',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _accentGreen),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child:
-                  Text('Cancel', style: TextStyle(color: widget.textSecondary)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final chosenTitle = titleController.text.trim().isNotEmpty
-                    ? titleController.text.trim()
-                    : initialTitle;
-                Navigator.pop(
-                  dialogContext,
-                  _FollowUpSelection(chosenTitle, selectedDate, selectedDays),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: widget.textPrimary,
-                foregroundColor: widget.cardBg,
-              ),
-              child: const Text('Enable follow-up'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (selection == null || !mounted) return;
-
-    setState(() => _schedulingFollowUp = true);
-    try {
-      await _matcherService.createFollowUp(
-        reportTitle: selection.jobTitle,
-        resumeFilename: report.resumeUsed,
-        applicationDate: selection.date,
-        followUpAfterDays: selection.days,
-      );
-      if (!mounted) return;
-      setState(() {
-        _schedulingFollowUp = false;
-        _followUpEnabled = true;
-        _applicationStatus = 'applied';
-      });
-      if (report.analysisId != null) {
-        _matcherService
-            .updateApplicationStatus(
-              analysisId: report.analysisId!,
-              status: 'applied',
-            )
-            .catchError((_) {});
-      }
-      widget.onFollowUpCreated?.call();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Follow-up scheduled for ${_formatDate(selection.date.add(Duration(days: selection.days)))}.'),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _schedulingFollowUp = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: _accentRed,
-        ),
-      );
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   // ── Colours ────────────────────────────────────────────────────────────────
@@ -591,16 +190,16 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
         child: _buildReport(_report!),
       );
     }
-    return _buildInputView();
+    return _buildInputForm();
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  INPUT VIEW
+  //  INPUT FORM
   // ══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildInputView() {
+  Widget _buildInputForm() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 740),
@@ -663,7 +262,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       );
     }
 
-    final resume = _selectedResume;
+    final resume = _activeResume;
     if (resume == null) {
       return _card(
         bgColor: const Color(0xFFFEF9C3),
@@ -706,110 +305,71 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
     return _card(
       bgColor: const Color(0xFFF0FDF4),
       borderColor: const Color(0xFFBBF7D0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: _accentGreen.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.description_rounded,
-                    color: _accentGreen, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Resume for this analysis',
-                      style: TextStyle(
-                          fontSize: 14,
-                          color: widget.textPrimary,
-                          fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${_resumes.length} resume${_resumes.length == 1 ? '' : 's'} available',
-                      style:
-                          TextStyle(fontSize: 12, color: widget.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          DropdownButtonFormField<String>(
-            key: ValueKey(resume.filename),
-            initialValue: resume.filename,
-            isExpanded: true,
-            dropdownColor: widget.cardBg,
-            icon: Icon(Icons.keyboard_arrow_down_rounded,
-                color: widget.textSecondary),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: widget.cardBg,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: widget.cardBorder),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: widget.cardBorder),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: _accentGreen, width: 1.5),
-              ),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _accentGreen.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
             ),
-            selectedItemBuilder: (context) => _resumes
-                .map((item) => Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '${item.filename}  ·  ${item.displaySize}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: widget.textPrimary),
-                      ),
-                    ))
-                .toList(),
-            items: _resumes
-                .map((item) => DropdownMenuItem<String>(
-                      value: item.filename,
-                      child: Text(
-                        '${item.filename}  ·  ${item.displaySize}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            TextStyle(fontSize: 14, color: widget.textPrimary),
-                      ),
-                    ))
-                .toList(),
-            onChanged: _analysing
-                ? null
-                : (filename) => setState(() {
-                      _selectedResumeFilename = filename;
-                      _errorMessage = null;
-                    }),
+            child:
+                Icon(Icons.description_rounded, color: _accentGreen, size: 18),
           ),
-          if (_resumes.length > 1) ...[
-            const SizedBox(height: 8),
-            Text(
-              'The newest resume is selected initially. Choose another to compare it with this job.',
-              style: TextStyle(fontSize: 12, color: widget.textSecondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _resumes.length > 1
+                      ? 'Selected Resume (${_resumes.length} available)'
+                      : 'Using uploaded resume',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: _accentGreen,
+                      fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                if (_resumes.length > 1)
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isDense: true,
+                      value: _selectedResumeFilename ?? resume.filename,
+                      items: _resumes.map((r) {
+                        return DropdownMenuItem<String>(
+                          value: r.filename,
+                          child: Text(
+                            r.filename,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: widget.textPrimary,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _selectedResumeFilename = val);
+                        }
+                      },
+                    ),
+                  )
+                else
+                  Text(
+                    resume.filename,
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: widget.textPrimary),
+                  ),
+              ],
             ),
-          ],
+          ),
+          Text(resume.displaySize,
+              style: TextStyle(fontSize: 12, color: widget.textSecondary)),
         ],
       ),
     );
@@ -820,24 +380,21 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Toggle tabs
+          // Input mode toggle tabs
           Row(
             children: [
-              _modeTab(label: 'Paste JD Text', index: 0),
+              _modeTab(label: 'Paste JD text', index: 0),
               const SizedBox(width: 8),
-              _modeTab(label: 'Enter JD URL', index: 1),
+              _modeTab(label: 'JD URL', index: 1),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
-          // Input area
           if (_jdInputMode == 0)
             TextField(
               controller: _jdTextController,
-              maxLines: 10,
-              onChanged: (_) => _autoDetectJobDetails(),
-              style: TextStyle(
-                  fontSize: 14, color: widget.textPrimary, height: 1.6),
+              maxLines: 8,
+              style: TextStyle(fontSize: 14, color: widget.textPrimary),
               decoration: InputDecoration(
                 hintText:
                     'Paste the full job description here…\n\nInclude requirements, responsibilities, and qualifications for best results.',
@@ -864,13 +421,12 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           else
             TextField(
               controller: _jdUrlController,
-              onChanged: (_) => _autoDetectJobDetails(),
               style: TextStyle(fontSize: 14, color: widget.textPrimary),
               decoration: InputDecoration(
-                hintText: 'https://www.linkedin.com/jobs/view/… or company career link',
+                hintText: 'https://www.linkedin.com/jobs/view/…',
                 hintStyle: TextStyle(color: widget.textSecondary, fontSize: 13),
-                prefixIcon: Icon(Icons.link_rounded,
-                    color: widget.textSecondary, size: 20),
+                prefixIcon:
+                    Icon(Icons.link_rounded, color: widget.textSecondary, size: 20),
                 filled: true,
                 fillColor: widget.isDarkMode
                     ? const Color(0xFF0F172A)
@@ -891,129 +447,6 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               ),
             ),
-
-          const SizedBox(height: 16),
-
-          // Role and Company Fields (Editable & Auto-detected)
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Job Role / Title',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: widget.textPrimary),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '(auto-detected)',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: widget.textSecondary),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _jobTitleController,
-                      style: TextStyle(
-                          fontSize: 13, color: widget.textPrimary),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Senior Software Engineer',
-                        hintStyle: TextStyle(
-                            fontSize: 12, color: widget.textSecondary),
-                        prefixIcon: Icon(Icons.work_outline_rounded,
-                            size: 18, color: widget.textSecondary),
-                        filled: true,
-                        fillColor: widget.isDarkMode
-                            ? const Color(0xFF0F172A)
-                            : const Color(0xFFF9FAFB),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: widget.cardBorder),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: widget.cardBorder),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                              color: widget.textPrimary, width: 1.5),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Company Name',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: widget.textPrimary),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '(auto-detected)',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: widget.textSecondary),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _companyController,
-                      style: TextStyle(
-                          fontSize: 13, color: widget.textPrimary),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Google, Stripe, Startup',
-                        hintStyle: TextStyle(
-                            fontSize: 12, color: widget.textSecondary),
-                        prefixIcon: Icon(Icons.business_outlined,
-                            size: 18, color: widget.textSecondary),
-                        filled: true,
-                        fillColor: widget.isDarkMode
-                            ? const Color(0xFF0F172A)
-                            : const Color(0xFFF9FAFB),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: widget.cardBorder),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: widget.cardBorder),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                              color: widget.textPrimary, width: 1.5),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -1038,7 +471,9 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: active ? widget.cardBg : widget.textSecondary,
+            color: active
+                ? widget.cardBg
+                : widget.textSecondary,
           ),
         ),
       ),
@@ -1046,7 +481,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
   }
 
   Widget _buildAnalyseButton() {
-    final hasResume = _selectedResume != null;
+    final hasResume = _activeResume != null;
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -1056,8 +491,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           foregroundColor: widget.cardBg,
           disabledBackgroundColor: widget.textSecondary.withOpacity(0.3),
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 0,
         ),
         child: _analysing
@@ -1105,8 +539,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
           const SizedBox(width: 10),
           Expanded(
               child: Text(msg,
-                  style:
-                      const TextStyle(fontSize: 13, color: Color(0xFFB42318)))),
+                  style: const TextStyle(
+                      fontSize: 13, color: Color(0xFFB42318)))),
           GestureDetector(
             onTap: () => setState(() => _errorMessage = null),
             child: const Icon(Icons.close_rounded,
@@ -1133,8 +567,7 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
               GestureDetector(
                 onTap: _resetToInput,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: _pillBg,
                     borderRadius: BorderRadius.circular(8),
@@ -1160,31 +593,6 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: widget.textPrimary),
-                ),
-              ),
-              _buildApplicationStatusButtons(r),
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: _schedulingFollowUp || _followUpEnabled
-                    ? null
-                    : () => _showFollowUpDialog(r),
-                icon: _schedulingFollowUp
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(_followUpEnabled
-                        ? Icons.check_circle_outline
-                        : Icons.notifications_active_outlined),
-                label:
-                    Text(_followUpEnabled ? 'Follow-up enabled' : 'Follow up'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.textPrimary,
-                  foregroundColor: widget.cardBg,
-                  disabledBackgroundColor: _accentGreen.withOpacity(0.12),
-                  disabledForegroundColor: _accentGreen,
-                  elevation: 0,
                 ),
               ),
             ],
@@ -1224,200 +632,11 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
               onPressed: _resetToInput,
               icon: const Icon(Icons.refresh_rounded, size: 16),
               label: const Text('Analyse a different JD'),
-              style:
-                  TextButton.styleFrom(foregroundColor: widget.textSecondary),
+              style: TextButton.styleFrom(foregroundColor: widget.textSecondary),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Future<void> _onApplicationStatusChanged(
-      AnalysisReportModel report, String newStatus) async {
-    setState(() {
-      _applicationStatus = newStatus;
-      _updatingStatus = true;
-    });
-
-    try {
-      if (report.analysisId != null) {
-        await _matcherService.updateApplicationStatus(
-          analysisId: report.analysisId!,
-          status: newStatus,
-        );
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            newStatus == 'applied'
-                ? 'Application status updated: Applied'
-                : 'Application status updated: Not Applied',
-          ),
-          duration: const Duration(seconds: 2),
-          backgroundColor: newStatus == 'applied'
-              ? const Color(0xFF16A34A)
-              : widget.textPrimary,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Failed to update status: ${e.toString().replaceFirst('Exception: ', '')}'),
-          backgroundColor: _accentRed,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _updatingStatus = false);
-      }
-    }
-  }
-
-  Widget _buildApplicationStatusButtons(AnalysisReportModel r) {
-    final isApplied = _applicationStatus == 'applied';
-    const appliedColor = Color(0xFF16A34A);
-    const notAppliedColor = Color(0xFF334155);
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Not Applied Button ──────────────────────────────────────────
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: _updatingStatus
-                ? null
-                : () {
-                    if (_applicationStatus != 'not_applied') {
-                      _onApplicationStatusChanged(r, 'not_applied');
-                    }
-                  },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: !isApplied ? notAppliedColor : widget.cardBg,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: !isApplied ? const Color(0xFF475569) : widget.cardBorder,
-                  width: !isApplied ? 1.6 : 1.2,
-                ),
-                boxShadow: !isApplied
-                    ? [
-                        BoxShadow(
-                          color: notAppliedColor.withValues(alpha: 0.28),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    !isApplied
-                        ? Icons.radio_button_checked_rounded
-                        : Icons.radio_button_unchecked_rounded,
-                    size: 15,
-                    color: !isApplied ? Colors.white : widget.textSecondary,
-                  ),
-                  const SizedBox(width: 7),
-                  Text(
-                    'Not Applied',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: !isApplied ? FontWeight.w700 : FontWeight.w600,
-                      color: !isApplied ? Colors.white : widget.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-
-        // ── Applied Button ──────────────────────────────────────────────
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: _updatingStatus
-                ? null
-                : () {
-                    if (_applicationStatus != 'applied') {
-                      _onApplicationStatusChanged(r, 'applied');
-                    }
-                  },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 15),
-              decoration: BoxDecoration(
-                color: isApplied
-                    ? appliedColor
-                    : appliedColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isApplied
-                      ? const Color(0xFF15803D)
-                      : appliedColor.withValues(alpha: 0.45),
-                  width: isApplied ? 1.8 : 1.2,
-                ),
-                boxShadow: isApplied
-                    ? [
-                        BoxShadow(
-                          color: appliedColor.withValues(alpha: 0.38),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_updatingStatus && isApplied) ...[
-                    const SizedBox(
-                      width: 13,
-                      height: 13,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                  ] else ...[
-                    Icon(
-                      isApplied
-                          ? Icons.check_circle_rounded
-                          : Icons.check_circle_outline_rounded,
-                      size: 15,
-                      color: isApplied ? Colors.white : appliedColor,
-                    ),
-                    const SizedBox(width: 7),
-                  ],
-                  Text(
-                    'Applied',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isApplied ? FontWeight.w700 : FontWeight.w600,
-                      color: isApplied ? Colors.white : appliedColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1503,7 +722,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                 const SizedBox(height: 4),
                 Text(
                   'Based on keyword match, skill overlap and profile alignment.',
-                  style: TextStyle(fontSize: 13, color: widget.textSecondary),
+                  style:
+                      TextStyle(fontSize: 13, color: widget.textSecondary),
                 ),
               ],
             ),
@@ -1694,7 +914,9 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                 child: Text(
                   p,
                   style: TextStyle(
-                      fontSize: 14, color: widget.textSecondary, height: 1.65),
+                      fontSize: 14,
+                      color: widget.textSecondary,
+                      height: 1.65),
                 ),
               )),
         ],
@@ -1738,7 +960,9 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
               child: Text(
                 '${role.matchScore}%',
                 style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.bold, color: barColor),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: barColor),
               ),
             ),
             const SizedBox(width: 16),
@@ -1757,7 +981,9 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
                   Text(
                     role.reason,
                     style: TextStyle(
-                        fontSize: 13, color: widget.textSecondary, height: 1.5),
+                        fontSize: 13,
+                        color: widget.textSecondary,
+                        height: 1.5),
                   ),
                   const SizedBox(height: 8),
                   // Progress bar
@@ -1787,8 +1013,8 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
         Container(
           width: 26,
           height: 26,
-          decoration:
-              BoxDecoration(color: widget.textPrimary, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+              color: widget.textPrimary, shape: BoxShape.circle),
           alignment: Alignment.center,
           child: Text(number,
               style: TextStyle(
@@ -1822,12 +1048,4 @@ class _JdMatcherScreenState extends State<JdMatcherScreen>
       child: child,
     );
   }
-}
-
-class _FollowUpSelection {
-  final String jobTitle;
-  final DateTime date;
-  final int days;
-
-  const _FollowUpSelection(this.jobTitle, this.date, this.days);
 }

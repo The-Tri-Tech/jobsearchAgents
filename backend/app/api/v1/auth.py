@@ -17,23 +17,37 @@ security = HTTPBearer()
 security_optional = HTTPBearer(auto_error=False)
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
     db: Session = Depends(get_db)
 ) -> User:
-    token = credentials.credentials
-    user_id = decode_access_token(token)
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired authentication token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    """Return authenticated user, or default system user for seamless no-auth mode."""
+    if credentials:
+        try:
+            user_id = decode_access_token(credentials.credentials)
+            if user_id:
+                user = db.query(User).filter(User.id == int(user_id)).first()
+                if user:
+                    return user
+        except Exception:
+            pass
+
+    # Default user for no-auth mode
+    user = db.query(User).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
+        user = User(
+            id=1,
+            email="student@skillbridge.ai",
+            full_name="Student",
+            hashed_password="local_no_auth_password",
+            plan="Pro plan",
+            avatar_letter="S",
         )
+        db.add(user)
+        try:
+            db.commit()
+            db.refresh(user)
+        except Exception:
+            db.rollback()
     return user
 
 def get_optional_user(

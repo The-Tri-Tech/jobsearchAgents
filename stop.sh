@@ -52,9 +52,9 @@ if [ ! -f "$PID_FILE" ]; then
 
   # Fallback: kill by port
   for port in 8000 3000; do
-    pid=$(lsof -ti tcp:"$port" 2>/dev/null)
-    if [ -n "$pid" ]; then
-      kill "$pid" 2>/dev/null && echo -e "${GREEN}✔  Killed process on port $port (PID $pid).${RESET}"
+    pids=$(lsof -ti tcp:"$port" 2>/dev/null)
+    if [ -n "$pids" ]; then
+      kill -9 $pids 2>/dev/null && echo -e "${GREEN}✔  Killed process on port $port ($pids).${RESET}"
     fi
   done
   echo ""
@@ -69,10 +69,10 @@ kill_pid "Frontend (Flutter)" "$FRONTEND_PID"
 
 # ── Also kill any child processes (uvicorn reload workers, flutter sub-procs) ─
 for port in 8000 3000; do
-  stray=$(lsof -ti tcp:"$port" 2>/dev/null)
-  if [ -n "$stray" ]; then
-    kill "$stray" 2>/dev/null
-    echo -e "${GREEN}✔  Cleaned up stray process on port $port.${RESET}"
+  strays=$(lsof -ti tcp:"$port" 2>/dev/null)
+  if [ -n "$strays" ]; then
+    kill -9 $strays 2>/dev/null
+    echo -e "${GREEN}✔  Cleaned up stray processes on port $port.${RESET}"
   fi
 done
 

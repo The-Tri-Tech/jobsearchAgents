@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:skillbridge_frontend/features/auth/data/datasources/auth_service.dart';
 import 'package:skillbridge_frontend/features/auth/data/models/user_model.dart';
-import 'package:skillbridge_frontend/features/auth/presentation/screens/auth_screen.dart';
 import 'package:skillbridge_frontend/features/resume/presentation/screens/resume_screen.dart';
 import 'package:skillbridge_frontend/features/jd_matcher/presentation/screens/jd_matcher_screen.dart';
-import 'package:skillbridge_frontend/features/jd_matcher/data/datasources/jd_matcher_service.dart';
-import 'package:skillbridge_frontend/features/jd_evaluation/presentation/screens/jd_evaluation_screen.dart';
-import 'package:skillbridge_frontend/features/chatbot/presentation/widgets/chatbot_panel.dart';
-import 'package:skillbridge_frontend/features/dashboard/presentation/screens/career_roadmap_screen.dart';
-import 'package:skillbridge_frontend/features/jobs/presentation/screens/jobs_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -23,37 +17,150 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   int _activeNavIndex = 0;
   bool _isDarkMode = false;
-  bool _isChatOpen = false;
-  List<ReminderModel> _reminders = [];
-  String _reminderFilter = "All";
-  List<FollowUpModel> _followUps = [];
+  String? _prefilledJdText;
 
   final List<Map<String, dynamic>> _navItems = [
     {"title": "Overview", "icon": Icons.grid_view_rounded},
     {"title": "Resume", "icon": Icons.description_outlined},
     {"title": "JD Matcher", "icon": Icons.search_rounded},
-    {"title": "JD Evaluation", "icon": Icons.verified_user_outlined},
     {"title": "Roadmap", "icon": Icons.timeline_rounded},
     {"title": "Jobs", "icon": Icons.work_outline_rounded},
   ];
 
   // Dynamic Theme Colors
-  Color get _bg =>
-      _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF9FAFB);
+  Color get _bg => _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF9FAFB);
   Color get _cardBg => _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
-  Color get _cardBorder =>
-      _isDarkMode ? const Color(0xFF334155) : const Color(0xFFEAECF0);
-  Color get _textPrimary =>
-      _isDarkMode ? const Color(0xFFF8FAFC) : const Color(0xFF101828);
-  Color get _textSecondary =>
-      _isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF667085);
-  Color get _activePill =>
-      _isDarkMode ? const Color(0xFF334155) : const Color(0xFFF2F4F7);
+  Color get _cardBorder => _isDarkMode ? const Color(0xFF334155) : const Color(0xFFEAECF0);
+  Color get _textPrimary => _isDarkMode ? const Color(0xFFF8FAFC) : const Color(0xFF101828);
+  Color get _textSecondary => _isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF667085);
+  Color get _activePill => _isDarkMode ? const Color(0xFF334155) : const Color(0xFFF2F4F7);
+  Color get _accentGreen => const Color(0xFF16A34A);
+  Color get _accentBlue => const Color(0xFF2563EB);
+  Color get _accentAmber => const Color(0xFFD97706);
+
+  // ── Roadmap Data ──────────────────────────────────────────────────────────
+  late List<_RoadmapPhaseData> _roadmapPhases;
+
+  // ── Jobs Data ─────────────────────────────────────────────────────────────
+  late List<_JobData> _jobsList;
+  String _jobsFilter = "All";
 
   @override
   void initState() {
     super.initState();
+    _initRoadmapData();
+    _initJobsData();
     _loadData();
+  }
+
+  void _initRoadmapData() {
+    _roadmapPhases = [
+      _RoadmapPhaseData(
+        phaseNumber: 1,
+        title: "Core Foundations & Microservice Architecture",
+        duration: "Weeks 1–3",
+        status: "in_progress",
+        description: "Master modern asynchronous Python, FastAPI dependencies, and containerized development.",
+        tasks: [
+          _RoadmapTaskData(id: 101, title: "Audit Python 3.12, FastAPI, and Docker core competencies", completed: true),
+          _RoadmapTaskData(id: 102, title: "Build asynchronous microservice patterns with clean dependency injection", completed: true),
+          _RoadmapTaskData(id: 103, title: "Implement automated unit & integration testing suite using Pytest", completed: false),
+        ],
+      ),
+      _RoadmapPhaseData(
+        phaseNumber: 2,
+        title: "Production AI Systems & Capstone Project",
+        duration: "Weeks 4–7",
+        status: "upcoming",
+        description: "Architect end-to-end AI Agent orchestration with LLM tool calling, grounding, and fallback.",
+        tasks: [
+          _RoadmapTaskData(id: 201, title: "Build AI agent workflow with Gemini & multi-model fallback", completed: false),
+          _RoadmapTaskData(id: 202, title: "Implement vector search & contextual grounding for job postings", completed: false),
+          _RoadmapTaskData(id: 203, title: "Deploy containerized services to cloud with automated CI/CD pipeline", completed: false),
+        ],
+      ),
+      _RoadmapPhaseData(
+        phaseNumber: 3,
+        title: "ATS Resume & Technical Profile Branding",
+        duration: "Weeks 8–9",
+        status: "upcoming",
+        description: "Tailor resume bullets to highlight business metrics, cloud architecture, and AI achievements.",
+        tasks: [
+          _RoadmapTaskData(id: 301, title: "Rewrite resume bullets with quantifiable business impact metrics", completed: false),
+          _RoadmapTaskData(id: 302, title: "Run JD Matcher against 5 live job postings and optimize keyword scores", completed: false),
+          _RoadmapTaskData(id: 303, title: "Polish GitHub portfolio repositories and live deployed demos", completed: false),
+        ],
+      ),
+      _RoadmapPhaseData(
+        phaseNumber: 4,
+        title: "System Design & Technical Interviews",
+        duration: "Weeks 10–12",
+        status: "upcoming",
+        description: "Master distributed system design patterns, concurrency, and live technical interviews.",
+        tasks: [
+          _RoadmapTaskData(id: 401, title: "Practice scalable API system design & distributed database caching", completed: false),
+          _RoadmapTaskData(id: 402, title: "Complete 3 mock technical interviews on Python, algorithms, & LLM architecture", completed: false),
+          _RoadmapTaskData(id: 403, title: "Submit 5 targeted job applications weekly and track responses", completed: false),
+        ],
+      ),
+    ];
+  }
+
+  void _initJobsData() {
+    _jobsList = [
+      _JobData(
+        id: 1,
+        title: "Senior Python & AI Engineer",
+        company: "TechCorp Global",
+        location: "Remote",
+        type: "Full-Time",
+        salary: "\$130k – \$160k",
+        matchScore: 92,
+        skills: ["Python", "FastAPI", "Docker", "Gemini LLMs", "PostgreSQL"],
+        jdText:
+            "We are seeking a Senior Python & AI Engineer with expertise in Python, FastAPI, Docker, and LLMs (such as Gemini or OpenAI). Must have experience building API services, agent systems, and automated test suites.",
+        isSaved: true,
+      ),
+      _JobData(
+        id: 2,
+        title: "Full Stack Engineer (Python & Flutter)",
+        company: "Innovate AI Labs",
+        location: "Hybrid • Bengaluru",
+        type: "Full-Time",
+        salary: "₹24L – ₹32L",
+        matchScore: 88,
+        skills: ["Python", "Flutter", "Dart", "FastAPI", "REST APIs"],
+        jdText:
+            "Join our team as a Full Stack Engineer building modern web and cross-platform mobile apps with Flutter, connected to high-performance FastAPI backends with AI integrations.",
+        isSaved: true,
+      ),
+      _JobData(
+        id: 3,
+        title: "AI Agent Orchestration Engineer",
+        company: "NextGen Systems",
+        location: "Remote",
+        type: "Full-Time",
+        salary: "\$140k – \$170k",
+        matchScore: 85,
+        skills: ["LangChain", "Python", "Tool Calling", "Microservices"],
+        jdText:
+            "Looking for an AI Agent Engineer experienced with agentic workflows, function calling, Gemini APIs, and autonomous task pipelines.",
+        isSaved: false,
+      ),
+      _JobData(
+        id: 4,
+        title: "Backend Systems Developer",
+        company: "CloudScale Tech",
+        location: "Remote",
+        type: "Full-Time",
+        salary: "\$115k – \$140k",
+        matchScore: 80,
+        skills: ["Python", "FastAPI", "Docker", "SQLAlchemy", "AsyncIO"],
+        jdText:
+            "Backend developer wanted to build resilient microservices with FastAPI, SQLite/PostgreSQL, and Docker containers.",
+        isSaved: false,
+      ),
+    ];
   }
 
   Future<void> _loadData() async {
@@ -62,304 +169,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final data = await _authService.fetchDashboardOverview();
       setState(() {
         _overview = data;
-        _reminders = List.from(data.reminders);
-        _followUps = List.from(data.followUps);
         _isLoading = false;
       });
     } catch (_) {
       setState(() => _isLoading = false);
     }
-  }
-
-  Future<void> _refreshOverviewSilently() async {
-    try {
-      final data = await _authService.fetchDashboardOverview();
-      if (mounted) {
-        setState(() {
-          _overview = data;
-          _reminders = List.from(data.reminders);
-          _followUps = List.from(data.followUps);
-        });
-      }
-    } catch (_) {
-      // Keep the last dashboard state if a background refresh fails.
-    }
-  }
-
-  Future<void> _handleLogout() async {
-    await _authService.logout();
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const AuthScreen()),
-      );
-    }
-  }
-
-  Future<void> _showProfileDialog() async {
-    final user = _overview?.user;
-    final nameCtrl = TextEditingController(text: user?.fullName ?? "Student");
-    final phoneCtrl = TextEditingController(text: user?.phoneNumber ?? "+91 98765 43210");
-    final emailCtrl = TextEditingController(text: user?.email ?? "student@skillbridge.ai");
-    final locCtrl = TextEditingController(text: user?.location ?? "Bengaluru, Karnataka, India");
-    final roleCtrl = TextEditingController(text: user?.targetRole ?? "Associate Product Manager");
-    final bioCtrl = TextEditingController(text: user?.bio ?? "Aspiring Product & Tech Professional");
-    bool isSaving = false;
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: _cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: _isDarkMode ? const Color(0xFF334155) : const Color(0xFF101828),
-                    child: Text(
-                      user?.avatarLetter ?? "S",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user?.fullName ?? "Student Profile",
-                        style: TextStyle(color: _textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              "Active Account",
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            user?.plan ?? "Pro plan",
-                            style: TextStyle(color: _textSecondary, fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              IconButton(
-                icon: Icon(Icons.close_rounded, color: _textSecondary),
-                onPressed: () => Navigator.pop(ctx),
-              ),
-            ],
-          ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Divider(height: 1),
-                  const SizedBox(height: 16),
-
-                  // Full Name
-                  Text("Full Name", style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: nameCtrl,
-                    style: TextStyle(color: _textPrimary, fontSize: 13),
-                    decoration: InputDecoration(
-                      prefixIcon: Icon(Icons.person_outline_rounded, size: 18, color: _textSecondary),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Phone Number & Email Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Phone Number", style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 6),
-                            TextField(
-                              controller: phoneCtrl,
-                              style: TextStyle(color: _textPrimary, fontSize: 13),
-                              decoration: InputDecoration(
-                                prefixIcon: Icon(Icons.phone_outlined, size: 18, color: _textSecondary),
-                                hintText: "+91 98765 43210",
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Email ID", style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 6),
-                            TextField(
-                              controller: emailCtrl,
-                              style: TextStyle(color: _textPrimary, fontSize: 13),
-                              decoration: InputDecoration(
-                                prefixIcon: Icon(Icons.email_outlined, size: 18, color: _textSecondary),
-                                hintText: "student@skillbridge.ai",
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Target Role & Location Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Target Role / Headline", style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 6),
-                            TextField(
-                              controller: roleCtrl,
-                              style: TextStyle(color: _textPrimary, fontSize: 13),
-                              decoration: InputDecoration(
-                                prefixIcon: Icon(Icons.work_outline_rounded, size: 18, color: _textSecondary),
-                                hintText: "e.g. Associate Product Manager",
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Location", style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 6),
-                            TextField(
-                              controller: locCtrl,
-                              style: TextStyle(color: _textPrimary, fontSize: 13),
-                              decoration: InputDecoration(
-                                prefixIcon: Icon(Icons.location_on_outlined, size: 18, color: _textSecondary),
-                                hintText: "e.g. Bengaluru, India",
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Bio / Details
-                  Text("About / Bio Details", style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: bioCtrl,
-                    maxLines: 2,
-                    style: TextStyle(color: _textPrimary, fontSize: 13),
-                    decoration: InputDecoration(
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.only(bottom: 24),
-                        child: Icon(Icons.badge_outlined, size: 18, color: _textSecondary),
-                      ),
-                      hintText: "Brief summary of skills, background, or career goals...",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text("Cancel", style: TextStyle(color: _textSecondary)),
-            ),
-            ElevatedButton(
-              onPressed: isSaving
-                  ? null
-                  : () async {
-                      setDialogState(() => isSaving = true);
-                      try {
-                        final updatedUser = await _authService.updateProfile(
-                          fullName: nameCtrl.text.trim(),
-                          phoneNumber: phoneCtrl.text.trim(),
-                          email: emailCtrl.text.trim(),
-                          location: locCtrl.text.trim(),
-                          targetRole: roleCtrl.text.trim(),
-                          bio: bioCtrl.text.trim(),
-                        );
-                        Navigator.pop(ctx);
-                        setState(() {
-                          if (_overview != null) {
-                            _overview = DashboardOverviewModel(
-                              greeting: "Good morning, ${updatedUser.fullName.split(' ').first} ✦",
-                              subtitle: _overview!.subtitle,
-                              user: updatedUser,
-                              metrics: _overview!.metrics,
-                              weeklyProgress: _overview!.weeklyProgress,
-                              reminders: _reminders,
-                              todayTasks: _overview!.todayTasks,
-                              followUps: _followUps,
-                            );
-                          }
-                        });
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("✨ Profile details updated successfully!"),
-                              backgroundColor: Color(0xFF10B981),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        setDialogState(() => isSaving = false);
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _textPrimary,
-                foregroundColor: _cardBg,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-              child: isSaving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text("Save Details", style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _onMetricActionTap(int index) {
@@ -368,15 +182,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  void _openChatbotPopup() {
-    showChatbotPopup(
-      context,
-      isDarkMode: _isDarkMode,
-      cardBg: _cardBg,
-      cardBorder: _cardBorder,
-      textPrimary: _textPrimary,
-      textSecondary: _textSecondary,
-    );
+  void _analyzeJobInJdMatcher(String jdText) {
+    setState(() {
+      _prefilledJdText = jdText;
+      _activeNavIndex = 2; // Navigate to JD Matcher tab
+    });
   }
 
   @override
@@ -387,20 +197,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: _bg,
       drawer: !isDesktop ? Drawer(child: _buildSidebar()) : null,
-      floatingActionButton: _activeNavIndex == 0
-          ? Container(
-              margin: const EdgeInsets.only(bottom: 8, right: 8),
-              child: FloatingActionButton(
-                onPressed: _openChatbotPopup,
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                elevation: 6,
-                shape: const CircleBorder(),
-                tooltip: 'Ask SkillBridge AI',
-                child: const Icon(Icons.auto_awesome, size: 26),
-              ),
-            )
-          : null,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -453,43 +249,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           textPrimary: _textPrimary,
           textSecondary: _textSecondary,
           onNavigateToResume: () => setState(() => _activeNavIndex = 1),
-          onFollowUpCreated: _refreshOverviewSilently,
+          initialJdText: _prefilledJdText,
         );
       case 3:
-        return JdEvaluationScreen(
-          isDarkMode: _isDarkMode,
-          bg: _bg,
-          cardBg: _cardBg,
-          cardBorder: _cardBorder,
-          textPrimary: _textPrimary,
-          textSecondary: _textSecondary,
-          onNavigateToResume: () => setState(() => _activeNavIndex = 1),
-        );
+        return _buildFullRoadmapTab();
       case 4:
-        return CareerRoadmapScreen(
-          isDarkMode: _isDarkMode,
-          bg: _bg,
-          cardBg: _cardBg,
-          cardBorder: _cardBorder,
-          textPrimary: _textPrimary,
-          textSecondary: _textSecondary,
-        );
-      case 5:
-        return JobsScreen(
-          isDarkMode: _isDarkMode,
-          bg: _bg,
-          cardBg: _cardBg,
-          cardBorder: _cardBorder,
-          textPrimary: _textPrimary,
-          textSecondary: _textSecondary,
-          onNavigateToJdMatcher: () => setState(() => _activeNavIndex = 2),
-        );
       default:
-        return _buildOverviewContent();
+        return _buildFullJobsTab();
     }
   }
 
-  // --- Overview Tab Content (Screenshot layout) ---
+  // --- Overview Tab Content ---
   Widget _buildOverviewContent() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
@@ -501,6 +271,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildMetricCardsRow(),
           const SizedBox(height: 28),
           _buildBottomSection(),
+          const SizedBox(height: 32),
+          _buildRoadmapOverviewSection(),
+          const SizedBox(height: 32),
+          _buildJobsOverviewSection(),
           const SizedBox(height: 40),
         ],
       ),
@@ -545,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "AI Job Assistant",
+                      "SkillBridge",
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -580,12 +354,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: InkWell(
                     onTap: () {
                       setState(() => _activeNavIndex = index);
-                      if (index == 0) _refreshOverviewSilently();
                     },
                     borderRadius: BorderRadius.circular(10),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: isActive ? _activePill : Colors.transparent,
                         borderRadius: BorderRadius.circular(10),
@@ -602,8 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             item['title'] as String,
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight:
-                                  isActive ? FontWeight.w600 : FontWeight.w500,
+                              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                               color: isActive ? _textPrimary : _textSecondary,
                             ),
                           ),
@@ -616,101 +387,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // User Footer Profile Card
+          // User Profile Card at Sidebar Bottom
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: InkWell(
-              onTap: _showProfileDialog,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: _isDarkMode
-                      ? const Color(0xFF0F172A)
-                      : const Color(0xFFFAFAFA),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _cardBorder),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 17,
-                      backgroundColor: _isDarkMode
-                          ? const Color(0xFF334155)
-                          : const Color(0xFF101828),
-                      child: Text(
-                        user?.avatarLetter ?? "S",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
+            padding: const EdgeInsets.all(16.0),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _activePill,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: _textPrimary,
+                    child: Text(
+                      user?.avatarLetter ?? "C",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user?.fullName ?? "Student",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: _textPrimary,
-                            ),
-                          ),
-                          Text(
-                            user?.plan ?? "Pro plan",
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: _textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuButton<String>(
-                      icon:
-                          Icon(Icons.more_vert, size: 18, color: _textSecondary),
-                      color: _cardBg,
-                      onSelected: (val) {
-                        if (val == "profile") _showProfileDialog();
-                        if (val == "logout") _handleLogout();
-                      },
-                      itemBuilder: (ctx) => [
-                        PopupMenuItem(
-                          value: "profile",
-                          child: Row(
-                            children: [
-                              Icon(Icons.person_outline_rounded,
-                                  size: 16, color: _textPrimary),
-                              const SizedBox(width: 8),
-                              Text("Profile Details",
-                                  style: TextStyle(
-                                      color: _textPrimary, fontSize: 13)),
-                            ],
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user?.fullName ?? "Candidate",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _textPrimary,
                           ),
                         ),
-                        const PopupMenuItem(
-                          value: "logout",
-                          child: Row(
-                            children: [
-                              Icon(Icons.logout,
-                                  size: 16, color: Color(0xFFD92D20)),
-                              SizedBox(width: 8),
-                              Text("Log Out",
-                                  style: TextStyle(
-                                      color: Color(0xFFD92D20), fontSize: 13)),
-                            ],
+                        Text(
+                          user?.plan ?? "Pro plan",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _textSecondary,
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -721,7 +446,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // --- Top App Bar ---
   Widget _buildTopAppBar(bool showMenuButton) {
-    final user = _overview?.user;
     final currentTitle = _navItems[_activeNavIndex]['title'] as String;
 
     return Container(
@@ -734,97 +458,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          if (showMenuButton)
-            IconButton(
-              icon: Icon(Icons.menu, color: _textPrimary),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            ),
-          Text(
-            currentTitle,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: _textPrimary,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const Spacer(),
-
-          // Theme moon toggle
-          IconButton(
-            icon: Icon(
-              _isDarkMode ? Icons.wb_sunny_outlined : Icons.dark_mode_outlined,
-              size: 20,
-              color: _textSecondary,
-            ),
-            onPressed: () => setState(() => _isDarkMode = !_isDarkMode),
-          ),
-
-          // Bell notification
-          Stack(
+          Row(
             children: [
-              IconButton(
-                icon: Icon(Icons.notifications_none_rounded,
-                    size: 21, color: _textSecondary),
-                onPressed: () {},
-              ),
-              Positioned(
-                right: 11,
-                top: 11,
-                child: Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: _textPrimary,
-                    shape: BoxShape.circle,
-                  ),
+              if (showMenuButton)
+                IconButton(
+                  icon: Icon(Icons.menu, color: _textPrimary),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+              Text(
+                currentTitle,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _textPrimary,
+                  letterSpacing: -0.3,
                 ),
               ),
             ],
           ),
-
-          // Chat button
-          Tooltip(
-            message: 'Open AI Assistant',
-            child: GestureDetector(
-              onTap: _openChatbotPopup,
-              child: Container(
-                width: 36,
-                height: 36,
-                margin: const EdgeInsets.only(left: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB),
-                  borderRadius: BorderRadius.circular(10),
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(
+                  _isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                  size: 20,
+                  color: _textSecondary,
                 ),
-                child: const Center(
-                  child: Icon(
-                    Icons.auto_awesome,
-                    size: 18,
-                    color: Colors.white,
-                  ),
+                onPressed: () => setState(() => _isDarkMode = !_isDarkMode),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => setState(() => _activeNavIndex = 2),
+                icon: const Icon(Icons.search_rounded, size: 16),
+                label: const Text("Run JD Matcher", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _textPrimary,
+                  side: BorderSide(color: _cardBorder),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // User avatar
-          InkWell(
-            onTap: _showProfileDialog,
-            borderRadius: BorderRadius.circular(20),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor:
-                  _isDarkMode ? const Color(0xFF334155) : const Color(0xFF101828),
-              child: Text(
-                user?.avatarLetter ?? "S",
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12),
-              ),
-            ),
+            ],
           ),
         ],
       ),
@@ -833,25 +509,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // --- Greeting Header ---
   Widget _buildGreetingHeader() {
-    final greeting = _overview?.greeting ?? "Good morning, Student ✦";
-    final subtitle = _overview?.subtitle ??
-        "This view updates from your real resume, JD, roadmap, and jobs activity.";
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          greeting,
+          _overview?.greeting ?? "Good morning, Candidate ✦",
           style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.bold,
             color: _textPrimary,
-            letterSpacing: -0.6,
+            letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
-          subtitle,
+          _overview?.subtitle ?? "Your unified career dashboard — track resumes, JD match evaluations, roadmap progress, and jobs.",
           style: TextStyle(
             fontSize: 14,
             color: _textSecondary,
@@ -887,8 +559,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final m = entry.value;
             return Expanded(
               child: Padding(
-                padding:
-                    EdgeInsets.only(right: idx == metrics.length - 1 ? 0 : 16),
+                padding: EdgeInsets.only(right: idx == metrics.length - 1 ? 0 : 16),
                 child: _buildMetricCard(m, idx),
               ),
             );
@@ -902,8 +573,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     IconData icon;
     int targetNavIndex = 1;
     switch (m.iconType) {
-      case "document":
       case "person":
+      case "document":
         icon = Icons.description_outlined;
         targetNavIndex = 1; // Resume
         break;
@@ -911,15 +582,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         icon = Icons.track_changes_rounded;
         targetNavIndex = 2; // JD Matcher
         break;
-      case "briefcase":
-        icon = Icons.work_outline_rounded;
-        targetNavIndex = 5; // Jobs
+      case "roadmap":
+      case "lightning":
+        icon = Icons.timeline_rounded;
+        targetNavIndex = 3; // Roadmap
         break;
-      case "bell":
-      case "event":
+      case "briefcase":
       default:
-        icon = Icons.event_available_rounded;
-        targetNavIndex = 2; // Follow-ups / JD Matcher
+        icon = Icons.work_outline_rounded;
+        targetNavIndex = 4; // Jobs
         break;
     }
 
@@ -929,18 +600,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: _cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _cardBorder, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Row: Icon + Action Pill
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -948,16 +611,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: _isDarkMode
-                      ? const Color(0xFF334155)
-                      : const Color(0xFFF2F4F7),
+                  color: _isDarkMode ? const Color(0xFF334155) : const Color(0xFFF2F4F7),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
-                  child: Icon(icon,
-                      size: 18,
-                      color:
-                          _isDarkMode ? Colors.white : const Color(0xFF475467)),
+                  child: Icon(icon, size: 18, color: _isDarkMode ? Colors.white : const Color(0xFF475467)),
                 ),
               ),
               OutlinedButton(
@@ -967,8 +625,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -983,27 +640,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
-
-          // Big Metric Value
+          const SizedBox(height: 18),
           Text(
             m.value,
             style: TextStyle(
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
               color: _textPrimary,
               letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 4),
-
-          // Label
           Text(
             m.title,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w500,
               color: _textSecondary,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -1011,21 +664,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // --- Bottom Section (Follow-ups + Reminders) ---
+  // --- Bottom Section (Weekly Progress + Today's Tasks) ---
   Widget _buildBottomSection() {
-    if (_followUps.isEmpty) {
-      return _buildRemindersCard();
-    }
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 900;
         if (isNarrow) {
           return Column(
             children: [
-              _buildFollowUpsCard(),
+              _buildWeeklyProgressCard(),
               const SizedBox(height: 20),
-              _buildRemindersCard(),
+              _buildTodayTasksCard(),
             ],
           );
         }
@@ -1033,17 +682,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 3, child: _buildFollowUpsCard()),
+            Expanded(flex: 3, child: _buildWeeklyProgressCard()),
             const SizedBox(width: 24),
-            Expanded(flex: 2, child: _buildRemindersCard()),
+            Expanded(flex: 2, child: _buildTodayTasksCard()),
           ],
         );
       },
     );
   }
 
-  // Follow-ups Card (Prominently displayed)
-  Widget _buildFollowUpsCard() {
+  // Weekly Progress Card
+  Widget _buildWeeklyProgressCard() {
+    final progressList = _overview?.weeklyProgress ?? [];
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -1057,323 +707,155 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Icon(Icons.event_available_rounded, size: 20, color: _textPrimary),
-                  const SizedBox(width: 10),
-                  Text(
-                    "Upcoming Follow-ups",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: _textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: _isDarkMode ? const Color(0xFF334155) : const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      "${_followUps.length} scheduled",
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF2563EB),
-                      ),
-                    ),
-                  ),
-                ],
+              Text(
+                "Weekly Progress",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: _textPrimary,
+                ),
+              ),
+              Text(
+                "Real activity",
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          ..._followUps.asMap().entries.map((entry) {
-              final followUp = entry.value;
-              final today = DateUtils.dateOnly(DateTime.now());
-              final dueDate = DateUtils.dateOnly(followUp.followUpDate);
-              final daysUntil = dueDate.difference(today).inDays;
-              final dueLabel = daysUntil < 0
-                  ? 'Overdue by ${-daysUntil} ${-daysUntil == 1 ? 'day' : 'days'}'
-                  : daysUntil == 0
-                      ? 'Due today'
-                      : 'Due in $daysUntil ${daysUntil == 1 ? 'day' : 'days'}';
-              final dueColor = daysUntil < 0
-                  ? const Color(0xFFEF4444)
-                  : (daysUntil == 0 ? const Color(0xFFF59E0B) : const Color(0xFF10B981));
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _cardBorder),
-                  ),
+          const SizedBox(height: 20),
+          ...progressList.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final item = entry.value;
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: dueColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.event_available_outlined, size: 18, color: dueColor),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(_cleanFollowUpJobTitle(followUp.reportTitle),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: _textPrimary)),
-                            const SizedBox(height: 3),
-                            Text(
-                              "${followUp.resumeFilename} • Applied ${_formatDashboardDate(followUp.applicationDate)}",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 11, color: _textSecondary),
-                            ),
-                          ],
+                      Text(
+                        item.label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: _textPrimary,
                         ),
                       ),
-                      const SizedBox(width: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: dueColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
+                          color: _activePill,
+                          borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          dueLabel,
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: dueColor),
+                          item.status,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _textPrimary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      IconButton(
-                        icon: Icon(Icons.close_rounded, size: 16, color: _textSecondary),
-                        tooltip: "Dismiss Follow-up",
-                        onPressed: () async {
-                          setState(() {
-                            _followUps.removeWhere((f) => f.id == followUp.id);
-                          });
-                          await _authService.deleteFollowUp(followUp.id);
-                        },
                       ),
                     ],
                   ),
                 ),
-              );
-            }),
+                if (idx < progressList.length - 1)
+                  Divider(color: _cardBorder, height: 1, thickness: 1),
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 
-  // Add Reminder Dialog
-  Future<void> _showAddReminderDialog() async {
-    final titleController = TextEditingController();
-    String selectedCategory = "Application";
-    DateTime selectedDate = DateTime.now().add(const Duration(days: 2));
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: _cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
+  // Today's Tasks Card
+  Widget _buildTodayTasksCard() {
+    final tasks = _overview?.todayTasks ?? [];
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _cardBorder, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _isDarkMode ? const Color(0xFF334155) : const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.add_alert_rounded, size: 20, color: Color(0xFF2563EB)),
-              ),
-              const SizedBox(width: 12),
               Text(
-                "Add Reminder",
+                "Today's Tasks",
                 style: TextStyle(
-                  color: _textPrimary,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  fontSize: 18,
+                  color: _textPrimary,
+                ),
+              ),
+              Text(
+                "${tasks.where((t) => t.completed).length}/${tasks.length} Done",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _accentGreen,
                 ),
               ),
             ],
           ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Reminder Title *",
-                      style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: titleController,
-                    autofocus: true,
-                    style: TextStyle(color: _textPrimary, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: "e.g. Follow up on apna application, Review matched skills...",
-                      hintStyle: TextStyle(color: _textSecondary, fontSize: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  Text("Category",
-                      style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: selectedCategory,
-                    dropdownColor: _cardBg,
-                    style: TextStyle(color: _textPrimary, fontSize: 13),
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: "Application", child: Text("Application Follow-up")),
-                      DropdownMenuItem(value: "JD Prep", child: Text("JD Match / Preparation")),
-                      DropdownMenuItem(value: "Resume", child: Text("Resume Update")),
-                      DropdownMenuItem(value: "Roadmap", child: Text("Roadmap Milestone")),
-                      DropdownMenuItem(value: "General", child: Text("General Reminder")),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setDialogState(() => selectedCategory = val);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-
-                  Text("Due Date",
-                      style: TextStyle(color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+          const SizedBox(height: 16),
+          ...tasks.map((task) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    task.completed = !task.completed;
+                  });
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
                     children: [
-                      {"label": "Today", "days": 0},
-                      {"label": "Tomorrow", "days": 1},
-                      {"label": "In 3 Days", "days": 3},
-                      {"label": "In 1 Week", "days": 7},
-                    ].map((preset) {
-                      final targetDate = DateUtils.dateOnly(DateTime.now().add(Duration(days: preset["days"] as int)));
-                      final isSel = DateUtils.isSameDay(selectedDate, targetDate);
-                      return ChoiceChip(
-                        label: Text(preset["label"] as String),
-                        selected: isSel,
-                        selectedColor: const Color(0xFF2563EB),
-                        backgroundColor: _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF9FAFB),
-                        labelStyle: TextStyle(
-                          color: isSel ? Colors.white : _textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        onSelected: (_) {
-                          setDialogState(() => selectedDate = targetDate);
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: selectedDate,
-                        firstDate: DateTime.now().subtract(const Duration(days: 30)),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (picked != null) {
-                        setDialogState(() => selectedDate = picked);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: _cardBorder),
-                        borderRadius: BorderRadius.circular(8),
+                      Icon(
+                        task.completed ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                        size: 18,
+                        color: task.completed ? _accentGreen : _textSecondary,
                       ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_today_rounded, size: 14, color: _textSecondary),
-                          const SizedBox(width: 8),
-                          Text(
-                            "Custom Date: ${_formatDashboardDate(selectedDate)}",
-                            style: TextStyle(color: _textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          task.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: task.completed ? _textSecondary : _textPrimary,
+                            decoration: task.completed ? TextDecoration.lineThrough : null,
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text("Cancel", style: TextStyle(color: _textSecondary)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final title = titleController.text.trim();
-                if (title.isEmpty) return;
-                Navigator.pop(ctx);
-                final newReminder = await _authService.createReminder(
-                  title: title,
-                  category: selectedCategory,
-                  dueDate: selectedDate,
-                );
-                setState(() {
-                  _reminders.insert(0, newReminder);
-                });
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("✨ Added reminder: $title"),
-                      backgroundColor: const Color(0xFF10B981),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _textPrimary,
-                foregroundColor: _cardBg,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text("Save Reminder", style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
+            );
+          }),
+        ],
       ),
     );
   }
 
-  // Reminders Card (Replaces Today's Tasks)
-  Widget _buildRemindersCard() {
-    final filteredReminders = _reminders.where((r) {
-      if (_reminderFilter == "Pending") return !r.completed;
-      if (_reminderFilter == "Completed") return r.completed;
-      return true;
-    }).toList();
+  // ══════════════════════════════════════════════════════════════════════════
+  //  ROADMAP OVERVIEW SECTION (ON OVERVIEW)
+  // ══════════════════════════════════════════════════════════════════════════
 
-    final pendingCount = _reminders.where((r) => !r.completed).length;
+  Widget _buildRoadmapOverviewSection() {
+    final allTasks = _roadmapPhases.expand((p) => p.tasks).toList();
+    final completedCount = allTasks.where((t) => t.completed).length;
+    final overallProgress = allTasks.isNotEmpty ? ((completedCount / allTasks.length) * 100).round() : 25;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1385,386 +867,744 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  Icon(Icons.notifications_active_rounded, size: 20, color: _textPrimary),
-                  const SizedBox(width: 10),
-                  Text(
-                    "Reminders",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: _textPrimary,
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: _accentBlue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.timeline_rounded, color: _accentBlue, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Career Roadmap Progress",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _textPrimary),
+                      ),
+                      Text(
+                        "Target Role: Full Stack & AI Engineer (Mid–Senior) · 12-Week Sprint",
+                        style: TextStyle(fontSize: 12, color: _textSecondary),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              OutlinedButton.icon(
+                onPressed: () => setState(() => _activeNavIndex = 3),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                label: const Text("View Full Roadmap", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _textPrimary,
+                  side: BorderSide(color: _cardBorder),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Progress indicator bar
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: overallProgress / 100,
+                    minHeight: 8,
+                    backgroundColor: _cardBorder,
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentBlue),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                "$overallProgress% Complete",
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _accentBlue),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // 4 Phases Grid / Row
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 840;
+              if (isWide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: _roadmapPhases.map((phase) {
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: _buildPhaseOverviewCard(phase),
+                      ),
+                    );
+                  }).toList(),
+                );
+              }
+
+              return Column(
+                children: _roadmapPhases.map((phase) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildPhaseOverviewCard(phase),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhaseOverviewCard(_RoadmapPhaseData phase) {
+    final bool isInProgress = phase.status == "in_progress";
+    final completedTasks = phase.tasks.where((t) => t.completed).length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isInProgress ? _accentBlue.withValues(alpha: 0.04) : _activePill.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isInProgress ? _accentBlue.withValues(alpha: 0.3) : _cardBorder,
+          width: isInProgress ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isInProgress ? _accentBlue : _textSecondary.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "Phase ${phase.phaseNumber}",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isInProgress ? Colors.white : _textPrimary,
+                  ),
+                ),
+              ),
+              Text(
+                phase.duration,
+                style: TextStyle(fontSize: 11, color: _textSecondary, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            phase.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: _textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "$completedTasks / ${phase.tasks.length} tasks completed",
+            style: TextStyle(fontSize: 11, color: _textSecondary),
+          ),
+          const SizedBox(height: 8),
+          ...phase.tasks.take(2).map((task) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        task.completed = !task.completed;
+                      });
+                    },
+                    child: Icon(
+                      task.completed ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                      size: 14,
+                      color: task.completed ? _accentGreen : _textSecondary,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: _isDarkMode ? const Color(0xFF334155) : const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  Expanded(
                     child: Text(
-                      "$pendingCount pending",
-                      style: const TextStyle(
+                      task.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
                         fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF2563EB),
+                        color: task.completed ? _textSecondary : _textPrimary,
+                        decoration: task.completed ? TextDecoration.lineThrough : null,
                       ),
                     ),
                   ),
                 ],
               ),
-              ElevatedButton.icon(
-                onPressed: _showAddReminderDialog,
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text("Add Reminder"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _textPrimary,
-                  foregroundColor: _cardBg,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  JOBS OVERVIEW SECTION (ON OVERVIEW)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildJobsOverviewSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _cardBorder, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: _accentGreen.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.work_outline_rounded, color: _accentGreen, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Target & Recommended Jobs",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _textPrimary),
+                      ),
+                      Text(
+                        "Matched against your uploaded resume and skill overlap",
+                        style: TextStyle(fontSize: 12, color: _textSecondary),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              OutlinedButton.icon(
+                onPressed: () => setState(() => _activeNavIndex = 4),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                label: const Text("Explore All Jobs", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _textPrimary,
+                  side: BorderSide(color: _cardBorder),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
 
-          // Filter pills (All, Pending, Completed)
+          // 2x2 Grid of Job Cards
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 760;
+              if (isWide) {
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: _jobsList.map((job) {
+                    return SizedBox(
+                      width: (constraints.maxWidth - 16) / 2,
+                      child: _buildJobCard(job),
+                    );
+                  }).toList(),
+                );
+              }
+
+              return Column(
+                children: _jobsList.map((job) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _buildJobCard(job),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobCard(_JobData job) {
+    final Color scoreColor = job.matchScore >= 85 ? _accentGreen : (job.matchScore >= 70 ? _accentAmber : Colors.red);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(
-            children: ["All", "Pending", "Completed"].map((tab) {
-              final isSelected = _reminderFilter == tab;
-              return Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: InkWell(
-                  onTap: () => setState(() => _reminderFilter = tab),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? _textPrimary
-                          : (_isDarkMode ? const Color(0xFF334155) : const Color(0xFFF2F4F7)),
-                      borderRadius: BorderRadius.circular(16),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      job.title,
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _textPrimary),
                     ),
-                    child: Text(
-                      tab,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isSelected ? _cardBg : _textSecondary,
-                      ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "${job.company} · ${job.location}",
+                      style: TextStyle(fontSize: 12, color: _textSecondary),
                     ),
-                  ),
+                  ],
                 ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: scoreColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.bolt_rounded, size: 14, color: scoreColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      "${job.matchScore}% Match",
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: scoreColor),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Skill tags
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: job.skills.map((s) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _activePill,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(s, style: TextStyle(fontSize: 11, color: _textPrimary)),
               );
             }).toList(),
           ),
           const SizedBox(height: 16),
 
-          // List of reminders
-          if (filteredReminders.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.check_circle_outline_rounded, size: 36, color: _textSecondary.withOpacity(0.5)),
-                    const SizedBox(height: 8),
-                    Text(
-                      _reminderFilter == "Completed"
-                          ? "No completed reminders yet."
-                          : "No reminders found. Stay on track by adding one!",
-                      style: TextStyle(fontSize: 13, color: _textSecondary),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+          // Action row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                job.salary,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textSecondary),
               ),
-            )
-          else
-            ...filteredReminders.map((reminder) {
-              final dueDate = reminder.dueDate;
-              String? dueText;
-              Color dueColor = const Color(0xFF16A34A);
-
-              if (dueDate != null) {
-                final today = DateUtils.dateOnly(DateTime.now());
-                final target = DateUtils.dateOnly(dueDate);
-                final diff = target.difference(today).inDays;
-                if (diff < 0) {
-                  dueText = "Overdue by ${-diff}d";
-                  dueColor = const Color(0xFFEF4444);
-                } else if (diff == 0) {
-                  dueText = "Due today";
-                  dueColor = const Color(0xFFF59E0B);
-                } else if (diff == 1) {
-                  dueText = "Due tomorrow";
-                  dueColor = const Color(0xFF10B981);
-                } else {
-                  dueText = "Due in ${diff}d";
-                  dueColor = const Color(0xFF2563EB);
-                }
-              }
-
-              // Category color
-              Color catBg;
-              Color catColor;
-              switch (reminder.category.toLowerCase()) {
-                case "application":
-                  catBg = const Color(0xFFEFF6FF);
-                  catColor = const Color(0xFF2563EB);
-                  break;
-                case "jd prep":
-                  catBg = const Color(0xFFFAF5FF);
-                  catColor = const Color(0xFF9333EA);
-                  break;
-                case "resume":
-                  catBg = const Color(0xFFFEF3C7);
-                  catColor = const Color(0xFFD97706);
-                  break;
-                case "roadmap":
-                  catBg = const Color(0xFFECFDF5);
-                  catColor = const Color(0xFF059669);
-                  break;
-                default:
-                  catBg = const Color(0xFFF1F5F9);
-                  catColor = const Color(0xFF475467);
-              }
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _cardBorder),
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      job.isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                      size: 20,
+                      color: job.isSaved ? _accentBlue : _textSecondary,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        job.isSaved = !job.isSaved;
+                      });
+                    },
+                    tooltip: job.isSaved ? "Saved" : "Save Job",
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Checkbox
-                      InkWell(
-                        onTap: () async {
-                          setState(() {
-                            reminder.completed = !reminder.completed;
-                          });
-                          await _authService.toggleReminder(reminder.id);
-                        },
-                        borderRadius: BorderRadius.circular(20),
-                        child: Padding(
-                          padding: const EdgeInsets.all(2),
-                          child: Icon(
-                            reminder.completed
-                                ? Icons.check_circle_rounded
-                                : Icons.radio_button_unchecked_rounded,
-                            size: 20,
-                            color: reminder.completed
-                                ? const Color(0xFF10B981)
-                                : _textSecondary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-
-                      // Title & Subtitle
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              reminder.title,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: reminder.completed ? _textSecondary : _textPrimary,
-                                decoration: reminder.completed ? TextDecoration.lineThrough : null,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: _isDarkMode ? const Color(0xFF334155) : catBg,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    reminder.category,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: _isDarkMode ? Colors.white : catColor,
-                                    ),
-                                  ),
-                                ),
-                                if (dueText != null) ...[
-                                  const SizedBox(width: 8),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.schedule_rounded, size: 11, color: dueColor),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        dueText,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: dueColor,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Delete Button
-                      IconButton(
-                        icon: Icon(Icons.close_rounded, size: 16, color: _textSecondary),
-                        tooltip: "Delete Reminder",
-                        onPressed: () async {
-                          setState(() {
-                            _reminders.removeWhere((r) => r.id == reminder.id);
-                          });
-                          await _authService.deleteReminder(reminder.id);
-                        },
-                      ),
-                    ],
+                  const SizedBox(width: 4),
+                  ElevatedButton.icon(
+                    onPressed: () => _analyzeJobInJdMatcher(job.jdText),
+                    icon: const Icon(Icons.analytics_outlined, size: 14),
+                    label: const Text("Analyze in JD Matcher", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _textPrimary,
+                      foregroundColor: _cardBg,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
                   ),
-                ),
-              );
-            }),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  String _cleanFollowUpJobTitle(String title) {
-    final trimmed = title.trim();
-    if (trimmed.isEmpty) return 'Target Role';
+  // ══════════════════════════════════════════════════════════════════════════
+  //  DEDICATED ROADMAP TAB (TAB 3)
+  // ══════════════════════════════════════════════════════════════════════════
 
-    final lower = trimmed.toLowerCase();
-    if (lower.contains('java/spring') || lower.contains('java / spring')) {
-      return 'Java / Spring Developer';
-    }
-    if (lower.contains('backend-focused') ||
-        lower.contains('backend‑focused') ||
-        lower.contains('backend foundations')) {
-      return 'Backend Software Engineer';
-    }
-    if (lower.contains('entry-level') ||
-        lower.contains('graduate, missing') ||
-        lower.contains('lacking required')) {
-      if (lower.contains('python')) {
-        return 'Python Developer';
-      }
-      return 'Software Engineer';
-    }
+  Widget _buildFullRoadmapTab() {
+    final allTasks = _roadmapPhases.expand((p) => p.tasks).toList();
+    final completedCount = allTasks.where((t) => t.completed).length;
+    final overallProgress = allTasks.isNotEmpty ? ((completedCount / allTasks.length) * 100).round() : 25;
 
-    return trimmed;
-  }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Career Roadmap", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _textPrimary)),
+                  const SizedBox(height: 4),
+                  Text("Personalized 12-week learning path tailored to Full Stack & AI Engineer positions.",
+                      style: TextStyle(fontSize: 14, color: _textSecondary)),
+                ],
+              ),
+              ElevatedButton.icon(
+                onPressed: () => setState(() => _activeNavIndex = 2),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text("Align with New JD"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _textPrimary,
+                  foregroundColor: _cardBg,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
 
-  String _formatDashboardDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
-  }
+          // Overview banner
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: _cardBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _cardBorder),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        value: overallProgress / 100,
+                        strokeWidth: 6,
+                        backgroundColor: _cardBorder,
+                        valueColor: AlwaysStoppedAnimation<Color>(_accentBlue),
+                      ),
+                      Text("$overallProgress%", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _accentBlue)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Sprint Progress: Phase 1 of 4 in progress", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textPrimary)),
+                      const SizedBox(height: 4),
+                      Text("You have completed $completedCount out of ${allTasks.length} milestones. Keep up the momentum to reach interview-ready status.",
+                          style: TextStyle(fontSize: 13, color: _textSecondary)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
 
-  // --- Sub-section placeholder view ---
-  Widget _buildSectionPlaceholder({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required String actionText,
-  }) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(32),
-        padding: const EdgeInsets.all(40),
-        constraints: const BoxConstraints(maxWidth: 600),
-        decoration: BoxDecoration(
-          color: _cardBg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _cardBorder),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: _isDarkMode
-                    ? const Color(0xFF334155)
-                    : const Color(0xFFF2F4F7),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon, size: 28, color: _textPrimary),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: _textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: _textSecondary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _textPrimary,
-                foregroundColor: _cardBg,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              ),
-              child: Text(actionText,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => setState(() => _activeNavIndex = 0),
-              child: Text("← Back to Overview",
-                  style: TextStyle(color: _textSecondary)),
-            ),
-          ],
-        ),
+          // All 4 Detailed Phases
+          ..._roadmapPhases.map((phase) => _buildDetailedPhaseSection(phase)),
+        ],
       ),
     );
   }
+
+  Widget _buildDetailedPhaseSection(_RoadmapPhaseData phase) {
+    final bool isInProgress = phase.status == "in_progress";
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isInProgress ? _accentBlue.withValues(alpha: 0.4) : _cardBorder, width: isInProgress ? 1.5 : 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: isInProgress ? _accentBlue : _textSecondary.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      "${phase.phaseNumber}",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(phase.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _textPrimary)),
+                      Text(phase.duration, style: TextStyle(fontSize: 12, color: _textSecondary)),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isInProgress ? _accentBlue.withValues(alpha: 0.1) : _activePill,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  isInProgress ? "In Progress" : "Upcoming",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isInProgress ? _accentBlue : _textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(phase.description, style: TextStyle(fontSize: 13, color: _textSecondary, height: 1.5)),
+          const SizedBox(height: 16),
+          Divider(color: _cardBorder),
+          const SizedBox(height: 8),
+
+          // Tasks checklist
+          ...phase.tasks.map((task) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    task.completed = !task.completed;
+                  });
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        task.completed ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                        size: 18,
+                        color: task.completed ? _accentGreen : _textSecondary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          task.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: task.completed ? _textSecondary : _textPrimary,
+                            decoration: task.completed ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  DEDICATED JOBS TAB (TAB 4)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildFullJobsTab() {
+    final filteredJobs = _jobsList.where((j) {
+      if (_jobsFilter == "Saved") return j.isSaved;
+      if (_jobsFilter == "High Match") return j.matchScore >= 85;
+      return true;
+    }).toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Jobs Explorer", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _textPrimary)),
+                  const SizedBox(height: 4),
+                  Text("Curated opportunities ranked by AI alignment to your verified resume skills.",
+                      style: TextStyle(fontSize: 14, color: _textSecondary)),
+                ],
+              ),
+              ElevatedButton.icon(
+                onPressed: () => setState(() => _activeNavIndex = 2),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text("Analyze New JD"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _textPrimary,
+                  foregroundColor: _cardBg,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Filters Row
+          Row(
+            children: ["All", "High Match", "Saved"].map((filter) {
+              final active = _jobsFilter == filter;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(filter),
+                  selected: active,
+                  onSelected: (_) => setState(() => _jobsFilter = filter),
+                  selectedColor: _textPrimary,
+                  labelStyle: TextStyle(
+                    color: active ? _cardBg : _textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  backgroundColor: _activePill,
+                  side: BorderSide.none,
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+
+          // Jobs List
+          ...filteredJobs.map((job) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _buildJobCard(job),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Models ──────────────────────────────────────────────────────────────────
+
+class _RoadmapPhaseData {
+  final int phaseNumber;
+  final String title;
+  final String duration;
+  final String status;
+  final String description;
+  final List<_RoadmapTaskData> tasks;
+
+  _RoadmapPhaseData({
+    required this.phaseNumber,
+    required this.title,
+    required this.duration,
+    required this.status,
+    required this.description,
+    required this.tasks,
+  });
+}
+
+class _RoadmapTaskData {
+  final int id;
+  final String title;
+  bool completed;
+
+  _RoadmapTaskData({
+    required this.id,
+    required this.title,
+    required this.completed,
+  });
+}
+
+class _JobData {
+  final int id;
+  final String title;
+  final String company;
+  final String location;
+  final String type;
+  final String salary;
+  final int matchScore;
+  final List<String> skills;
+  final String jdText;
+  bool isSaved;
+
+  _JobData({
+    required this.id,
+    required this.title,
+    required this.company,
+    required this.location,
+    required this.type,
+    required this.salary,
+    required this.matchScore,
+    required this.skills,
+    required this.jdText,
+    required this.isSaved,
+  });
 }

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:skillbridge_frontend/features/auth/presentation/screens/auth_screen.dart';
+import 'package:skillbridge_frontend/features/dashboard/presentation/screens/dashboard_screen.dart';
 
 void main() {
-  testWidgets('Smoke test renders AuthScreen', (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(home: AuthScreen()));
-    expect(find.text('AI Job Assistant'), findsOneWidget);
+  testWidgets('Smoke test renders DashboardScreen', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(const MaterialApp(home: DashboardScreen()));
+    expect(find.text('Overview'), findsWidgets);
   });
 }

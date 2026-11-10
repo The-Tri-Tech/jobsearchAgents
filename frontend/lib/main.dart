@@ -1,22 +1,14 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
-import 'features/auth/data/datasources/auth_service.dart';
-import 'features/auth/presentation/screens/auth_screen.dart';
 import 'features/dashboard/presentation/screens/dashboard_screen.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  final authService = AuthService();
-  final token = await authService.getToken();
-
-  runApp(AIJobAssistantApp(initialScreen: token != null ? const DashboardScreen() : const AuthScreen()));
+  runApp(const AIJobAssistantApp());
 }
 
 class AIJobAssistantApp extends StatelessWidget {
-  final Widget initialScreen;
-
-  const AIJobAssistantApp({super.key, required this.initialScreen});
+  const AIJobAssistantApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -24,12 +16,7 @@ class AIJobAssistantApp extends StatelessWidget {
       title: 'AI Job Assistant',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: initialScreen,
-      routes: {
-        '/auth': (context) => const AuthScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
-      },
+      home: const DashboardScreen(),
     );
   }
 }
-
