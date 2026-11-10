@@ -132,3 +132,4 @@ if __name__ == "__main__":
     # Runs the standard MCP stdio transport loop
     print("Starting SkillBridge MCP Server on stdio...", file=sys.stderr)
     mcp.run()
+
