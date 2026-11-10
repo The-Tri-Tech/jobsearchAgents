@@ -24,6 +24,12 @@ class ChatAgentError(RuntimeError):
     pass
 
 
+class ChatAgentResult:
+    def __init__(self, reply: str, tool_called: str | None = None):
+        self.reply = reply
+        self.tool_called = tool_called
+
+
 def check_career_guardrails(message: str) -> str | None:
     """
     Enforces strict domain guardrails: only questions related to jobs, careers,
@@ -80,11 +86,11 @@ class ChatAgent:
         resume_context: str | None = None,
         db: Session | None = None,
         user_id: int | None = None,
-    ) -> str:
+    ) -> ChatAgentResult:
         # 1. Guardrail Check
         guardrail_refusal = check_career_guardrails(message)
         if guardrail_refusal:
-            return guardrail_refusal
+            return ChatAgentResult(reply=guardrail_refusal, tool_called=None)
 
         # 2. System Instructions with LLM Tool Calling Directive
         system_instruction = (
@@ -129,9 +135,12 @@ class ChatAgent:
                 user_id=user_id,
             )
         else:
-            return (
-                "I am your AI Career Assistant. To enable live AI intelligence, "
-                f"please set {'GROQ_API_KEY' if settings.LLM_PROVIDER == 'groq' else 'GEMINI_API_KEY'} in backend/.env."
+            return ChatAgentResult(
+                reply=(
+                    "I am your AI Career Assistant. To enable live AI intelligence, "
+                    f"please set {'GROQ_API_KEY' if settings.LLM_PROVIDER == 'groq' else 'GEMINI_API_KEY'} in backend/.env."
+                ),
+                tool_called=None,
             )
 
     async def _chat_groq(
@@ -142,7 +151,7 @@ class ChatAgent:
         system_instruction: str,
         db: Session | None = None,
         user_id: int | None = None,
-    ) -> str:
+    ) -> ChatAgentResult:
         client = None
         try:
             client = AsyncGroq(
@@ -170,8 +179,11 @@ class ChatAgent:
             choice = response.choices[0]
             if choice.message.tool_calls and db is not None and user_id is not None:
                 messages.append(choice.message)
+                tool_called_name = None
                 for tool_call in choice.message.tool_calls:
                     tool_name = tool_call.function.name
+                    if not tool_called_name:
+                        tool_called_name = tool_name
                     try:
                         tool_args = json.loads(tool_call.function.arguments or "{}")
                     except Exception:
@@ -192,17 +204,26 @@ class ChatAgent:
                     max_tokens=1024,
                 )
                 reply = second_response.choices[0].message.content or ""
-                return reply.strip() or "I have processed your query."
+                return ChatAgentResult(
+                    reply=reply.strip() or "I have processed your query.",
+                    tool_called=tool_called_name,
+                )
 
             reply = choice.message.content or ""
-            return reply.strip() or "I couldn't generate a response. Please try rephrasing."
+            return ChatAgentResult(
+                reply=reply.strip() or "I couldn't generate a response. Please try rephrasing.",
+                tool_called=None,
+            )
         except GroqAPIError as exc:
             err_msg = getattr(exc, "message", str(exc))
             logger.warning("Groq chat error: %s", err_msg)
             raise ChatAgentError(f"Groq Chat Assistant error: {err_msg}") from exc
         except Exception as exc:
             logger.exception("Unexpected Groq chat failure: %s", exc)
-            return "Sorry, something unexpected happened while generating the response via Groq. Please try again."
+            return ChatAgentResult(
+                reply="Sorry, something unexpected happened while generating the response via Groq. Please try again.",
+                tool_called=None,
+            )
         finally:
             if client is not None:
                 await client.close()
@@ -215,7 +236,7 @@ class ChatAgent:
         system_instruction: str,
         db: Session | None = None,
         user_id: int | None = None,
-    ) -> str:
+    ) -> ChatAgentResult:
         client = None
         try:
             client = genai.Client(
@@ -276,7 +297,10 @@ class ChatAgent:
                     contents.append(response.candidates[0].content)
 
                 parts = []
+                tool_called_name = None
                 for call in response.function_calls:
+                    if not tool_called_name:
+                        tool_called_name = call.name
                     tool_args = dict(call.args or {})
                     logger.info("Gemini LLM invoked tool: %s with args: %s", call.name, tool_args)
                     tool_result = execute_career_tool(call.name, tool_args, db, user_id)
@@ -294,12 +318,21 @@ class ChatAgent:
                     contents=contents,
                     config=config,
                 )
-                return (second_response.text or "").strip() or "I have processed your query."
+                return ChatAgentResult(
+                    reply=(second_response.text or "").strip() or "I have processed your query.",
+                    tool_called=tool_called_name,
+                )
 
-            return (response.text or "").strip() or "I couldn't generate a response. Please try rephrasing."
+            return ChatAgentResult(
+                reply=(response.text or "").strip() or "I couldn't generate a response. Please try rephrasing.",
+                tool_called=None,
+            )
         except Exception as exc:
             logger.exception("Gemini chat error: %s", exc)
-            return "Sorry, something unexpected happened with the Gemini Assistant. Please try again."
+            return ChatAgentResult(
+                reply="Sorry, something unexpected happened with the Gemini Assistant. Please try again.",
+                tool_called=None,
+            )
         finally:
             if client is not None:
                 await client.aio.aclose()

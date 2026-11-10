@@ -368,15 +368,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  void _openChatbotPopup() {
-    showChatbotPopup(
-      context,
-      isDarkMode: _isDarkMode,
-      cardBg: _cardBg,
-      cardBorder: _cardBorder,
-      textPrimary: _textPrimary,
-      textSecondary: _textSecondary,
-    );
+  void _toggleChatbot() {
+    setState(() {
+      _isChatOpen = !_isChatOpen;
+    });
   }
 
   @override
@@ -387,11 +382,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: _bg,
       drawer: !isDesktop ? Drawer(child: _buildSidebar()) : null,
-      floatingActionButton: _activeNavIndex == 0
+      floatingActionButton: (_activeNavIndex == 0 && !_isChatOpen)
           ? Container(
               margin: const EdgeInsets.only(bottom: 8, right: 8),
               child: FloatingActionButton(
-                onPressed: _openChatbotPopup,
+                onPressed: _toggleChatbot,
                 backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
                 elevation: 6,
@@ -402,7 +397,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             )
           : null,
       body: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Sidebar for Desktop
           if (isDesktop) SizedBox(width: 240, child: _buildSidebar()),
@@ -425,6 +420,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
+
+          // Chatbot Side Panel expanded on right side of the screen
+          if (_isChatOpen)
+            Container(
+              width: isDesktop ? 400 : (screenWidth * 0.88).clamp(320.0, 420.0),
+              decoration: BoxDecoration(
+                color: _cardBg,
+                border: Border(
+                  left: BorderSide(color: _cardBorder, width: 1.5),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 18,
+                    offset: const Offset(-4, 0),
+                  ),
+                ],
+              ),
+              child: ChatbotPanel(
+                isDarkMode: _isDarkMode,
+                cardBg: _cardBg,
+                cardBorder: _cardBorder,
+                textPrimary: _textPrimary,
+                textSecondary: _textSecondary,
+                onClose: () {
+                  setState(() {
+                    _isChatOpen = false;
+                  });
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -786,20 +812,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           // Chat button
           Tooltip(
-            message: 'Open AI Assistant',
+            message: _isChatOpen ? 'Close AI Assistant' : 'Open AI Assistant',
             child: GestureDetector(
-              onTap: _openChatbotPopup,
+              onTap: _toggleChatbot,
               child: Container(
                 width: 36,
                 height: 36,
                 margin: const EdgeInsets.only(left: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB),
+                  color: _isChatOpen
+                      ? const Color(0xFF1D4ED8)
+                      : const Color(0xFF2563EB),
                   borderRadius: BorderRadius.circular(10),
+                  boxShadow: _isChatOpen
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF2563EB).withOpacity(0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
-                child: const Center(
+                child: Center(
                   child: Icon(
-                    Icons.auto_awesome,
+                    _isChatOpen ? Icons.chat_bubble_rounded : Icons.auto_awesome,
                     size: 18,
                     color: Colors.white,
                   ),

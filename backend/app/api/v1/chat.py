@@ -32,14 +32,14 @@ async def send_chat_message(
                 logger.warning("Could not extract resume for chat context: %s", e)
 
     try:
-        reply = await chat_agent.chat(
+        agent_res = await chat_agent.chat(
             message=payload.message.strip(),
             history=payload.history,
             resume_context=resume_context,
             db=db,
             user_id=current_user.id,
         )
-        return ChatResponse(reply=reply)
+        return ChatResponse(reply=agent_res.reply, tool_called=agent_res.tool_called)
     except ChatAgentError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

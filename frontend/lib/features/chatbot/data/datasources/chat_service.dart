@@ -3,6 +3,13 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/api_constants.dart';
 
+class ChatResponseData {
+  final String reply;
+  final String? toolCalled;
+
+  ChatResponseData({required this.reply, this.toolCalled});
+}
+
 class ChatService {
   static const String _tokenKey = 'skillbridge_jwt_token';
 
@@ -11,7 +18,7 @@ class ChatService {
     return prefs.getString(_tokenKey);
   }
 
-  Future<String> sendMessage({
+  Future<ChatResponseData> sendMessage({
     required String message,
     List<Map<String, String>> history = const [],
     String? resumeFilename,
@@ -36,7 +43,10 @@ class ChatService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return data['reply'] as String;
+      return ChatResponseData(
+        reply: data['reply'] as String,
+        toolCalled: data['tool_called'] as String?,
+      );
     } else {
       final err = jsonDecode(response.body);
       throw Exception(err['detail'] ?? 'Failed to get AI response');

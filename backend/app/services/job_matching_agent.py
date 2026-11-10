@@ -52,8 +52,16 @@ def _html_to_text(content: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(content)).strip()
 
 
+_LINKEDIN_USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+]
+
+
 async def fetch_linkedin_job_description(url: str) -> str:
-    """Fetch public LinkedIn job posting using LinkedIn's guest job endpoint."""
+    """Fetch public LinkedIn job posting using LinkedIn's guest job endpoint with automatic retry & fallback."""
     job_id_match = (
         re.search(r"/view/(?:.*?(\d+))", url)
         or re.search(r"currentJobId=(\d+)", url)
@@ -66,80 +74,134 @@ async def fetch_linkedin_job_description(url: str) -> str:
         )
 
     job_id = job_id_match.group(1)
-    guest_url = f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-    try:
-        async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
-            resp = await client.get(guest_url, follow_redirects=True)
-            if resp.status_code == 404:
-                raise JobMatchingError(
-                    "This LinkedIn job posting could not be found (it may be closed or private). "
-                    "Please copy and paste the job description text into 'Paste JD Text' instead."
+
+    # Candidate endpoints to query
+    endpoints = [
+        f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}",
+        f"https://www.linkedin.com/jobs/view/{job_id}/",
+    ]
+
+    last_error: Exception | None = None
+    max_attempts = 3
+    backoff_delays = [1.5, 3.0]
+
+    for attempt in range(max_attempts):
+        user_agent = _LINKEDIN_USER_AGENTS[attempt % len(_LINKEDIN_USER_AGENTS)]
+        headers = {
+            "User-Agent": user_agent,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"macOS"',
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+        }
+
+        # On later attempts, try the canonical view page if guest API gets throttled
+        target_url = endpoints[0] if attempt < 2 else endpoints[1]
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
+                resp = await client.get(target_url, follow_redirects=True)
+                if resp.status_code == 404:
+                    raise JobMatchingError(
+                        "This LinkedIn job posting could not be found (it may be closed or private). "
+                        "Please copy and paste the job description text into 'Paste JD Text' instead."
+                    )
+                if resp.status_code in {429, 999, 502, 503, 504}:
+                    # Rate-limited or throttled by LinkedIn CDN
+                    logger.warning(
+                        "LinkedIn returned HTTP %s on attempt %d/%d for job %s; backing off...",
+                        resp.status_code,
+                        attempt + 1,
+                        max_attempts,
+                        job_id,
+                    )
+                    if attempt < max_attempts - 1:
+                        await asyncio.sleep(backoff_delays[attempt])
+                        continue
+                    else:
+                        resp.raise_for_status()
+
+                resp.raise_for_status()
+                raw_html = resp.text
+
+                # Parse Title
+                title_match = (
+                    re.search(r'<h2 class="top-card-layout__title[^"]*"[^>]*>(.*?)</h2>', raw_html, re.DOTALL)
+                    or re.search(r'<h1 class="[^"]*top-card[^"]*"[^>]*>(.*?)</h1>', raw_html, re.DOTALL)
+                    or re.search(r"<h1[^>]*>(.*?)</h1>", raw_html, re.DOTALL)
                 )
-            resp.raise_for_status()
-
-            raw_html = resp.text
-
-            title_match = re.search(
-                r'<h2 class="top-card-layout__title[^"]*"[^>]*>(.*?)</h2>',
-                raw_html,
-                re.DOTALL,
-            ) or re.search(r"<h1[^>]*>(.*?)</h1>", raw_html, re.DOTALL)
-            title = (
-                re.sub(r"<[^>]+>", "", title_match.group(1)).strip()
-                if title_match
-                else "Target Job"
-            )
-
-            comp_match = re.search(
-                r'<a class="topcard__org-name-link[^"]*"[^>]*>(.*?)</a>',
-                raw_html,
-                re.DOTALL,
-            )
-            company = (
-                re.sub(r"<[^>]+>", "", comp_match.group(1)).strip()
-                if comp_match
-                else ""
-            )
-
-            desc_match = re.search(
-                r'<div class="show-more-less-html__markup[^"]*"[^>]*>(.*?)</div>',
-                raw_html,
-                re.DOTALL,
-            )
-            if desc_match:
-                desc_text = re.sub(
-                    r"\s+",
-                    " ",
-                    html.unescape(re.sub(r"<[^>]+>", " ", desc_match.group(1))),
-                ).strip()
-            else:
-                desc_text = _html_to_text(raw_html)
-
-            if len(desc_text) < 50:
-                raise JobMatchingError(
-                    "The LinkedIn job posting did not contain readable description text. "
-                    "Please copy and paste the job description text into 'Paste JD Text' instead."
+                title = (
+                    re.sub(r"<[^>]+>", "", title_match.group(1)).strip()
+                    if title_match
+                    else "Target Job"
                 )
 
-            header = f"{title} at {company}\n\n" if company else f"{title}\n\n"
-            return (header + desc_text)[:80_000]
+                # Parse Company
+                comp_match = (
+                    re.search(r'<a class="topcard__org-name-link[^"]*"[^>]*>(.*?)</a>', raw_html, re.DOTALL)
+                    or re.search(r'<span class="topcard__flavor[^"]*"[^>]*>(.*?)</span>', raw_html, re.DOTALL)
+                    or re.search(r'<a class="[^"]*company-name[^"]*"[^>]*>(.*?)</a>', raw_html, re.DOTALL)
+                )
+                company = (
+                    re.sub(r"<[^>]+>", "", comp_match.group(1)).strip()
+                    if comp_match
+                    else ""
+                )
 
-    except JobMatchingError:
-        raise
-    except Exception as exc:
-        logger.warning("Error fetching LinkedIn job %s: %s", job_id, exc)
-        raise JobMatchingError(
-            "Could not fetch the LinkedIn job description. "
-            "Please copy and paste the job description text into 'Paste JD Text' instead."
-        ) from exc
+                # Parse Description
+                desc_match = (
+                    re.search(r'<div class="show-more-less-html__markup[^"]*"[^>]*>(.*?)</div>', raw_html, re.DOTALL)
+                    or re.search(r'<div class="[^"]*decoratedJobPosting__description[^"]*"[^>]*>(.*?)</div>', raw_html, re.DOTALL)
+                    or re.search(r'<div class="[^"]*jobs-description__content[^"]*"[^>]*>(.*?)</div>', raw_html, re.DOTALL)
+                )
+                if desc_match:
+                    desc_text = re.sub(
+                        r"\s+",
+                        " ",
+                        html.unescape(re.sub(r"<[^>]+>", " ", desc_match.group(1))),
+                    ).strip()
+                else:
+                    desc_text = _html_to_text(raw_html)
+
+                if len(desc_text) < 50:
+                    logger.warning("LinkedIn description text too short (%d chars) on attempt %d", len(desc_text), attempt + 1)
+                    if attempt < max_attempts - 1:
+                        await asyncio.sleep(backoff_delays[attempt])
+                        continue
+                    raise JobMatchingError(
+                        "The LinkedIn job posting did not contain readable description text. "
+                        "Please copy and paste the job description text into 'Paste JD Text' instead."
+                    )
+
+                header = f"{title} at {company}\n\n" if company else f"{title}\n\n"
+                return (header + desc_text)[:80_000]
+
+        except JobMatchingError:
+            raise
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError) as exc:
+            last_error = exc
+            logger.warning("Network/HTTP error on attempt %d/%d for LinkedIn job %s: %s", attempt + 1, max_attempts, job_id, exc)
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(backoff_delays[attempt])
+                continue
+        except Exception as exc:
+            last_error = exc
+            logger.warning("Unexpected error fetching LinkedIn job %s on attempt %d: %s", job_id, attempt + 1, exc)
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(backoff_delays[attempt])
+                continue
+
+    logger.warning("Failed all %d attempts fetching LinkedIn job %s: %s", max_attempts, job_id, last_error)
+    raise JobMatchingError(
+        "Could not fetch the LinkedIn job description due to LinkedIn rate limiting. "
+        "Please copy and paste the job description text into 'Paste JD Text' instead."
+    )
 
 
 async def fetch_job_description(url: str) -> str:
@@ -296,7 +358,13 @@ JOB DESCRIPTION
             if response.parsed is not None:
                 report = AnalysisReport.model_validate(response.parsed)
             elif response.text:
-                report = AnalysisReport.model_validate_json(response.text)
+                try:
+                    report = AnalysisReport.model_validate_json(response.text)
+                except Exception:
+                    from app.services.groq_matching_agent import extract_json_object, sanitize_analysis_dict
+                    parsed_raw = extract_json_object(response.text)
+                    sanitized = sanitize_analysis_dict(parsed_raw, resume_filename, jd_source)
+                    report = AnalysisReport.model_validate(sanitized)
             else:
                 raise JobMatchingError("Gemini returned an empty analysis.")
 

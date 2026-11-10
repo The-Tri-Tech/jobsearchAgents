@@ -92,15 +92,63 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isBotTyping = false;
+  String? _currentMcpTool;
 
   static const Color _accentBlue = Color(0xFF2563EB);
 
   final List<String> _promptSuggestions = [
     "List all my job follow-ups",
     "Today how many jobs I need to follow up?",
+    "How many jobs did I apply today?",
     "How many I applied where match score > 50%?",
     "How am I doing overall?",
   ];
+
+  String _resolveMcpToolName(String question) {
+    final lower = question.trim().toLowerCase();
+
+    // 1. Follow-ups due today / overdue
+    if ((lower.contains('today') || lower.contains('due') || lower.contains('pending')) &&
+        (lower.contains('follow up') || lower.contains('followup') || lower.contains('follow-up') || lower.contains('need to follow'))) {
+      return 'get_today_follow_ups';
+    }
+
+    // 2. All follow-ups (general / list)
+    if (lower.contains('follow up') || lower.contains('followup') || lower.contains('follow-up')) {
+      return 'get_all_follow_ups';
+    }
+
+    // 3. Jobs applied today
+    if (lower.contains('applied') || lower.contains('applications') || lower.contains('apply')) {
+      if (lower.contains('today') || lower.contains('recent') || lower.contains('how many')) {
+        return 'get_today_applied_jobs';
+      }
+    }
+
+    // 4. Match score > 50% / high match
+    if (lower.contains('50') || lower.contains('> 50') || lower.contains('greater than 50') ||
+        (lower.contains('match') && (lower.contains('score') || lower.contains('high') || lower.contains('suit')))) {
+      return 'get_high_match_jobs';
+    }
+
+    // 5. Overall standing / average / progress
+    if (lower.contains('overall') || lower.contains('standing') || lower.contains('how am i doing') ||
+        lower.contains('average') || lower.contains('progress') || lower.contains('stats')) {
+      return 'get_overall_standing';
+    }
+
+    // 6. Resume / CV / ATS tools
+    if (lower.contains('resume') || lower.contains('cv') || lower.contains('ats')) {
+      return 'resume_matcher_tool';
+    }
+
+    // 7. General career / interview advisor
+    if (lower.contains('interview') || lower.contains('salary') || lower.contains('prep')) {
+      return 'interview_prep_tool';
+    }
+
+    return 'career_advisor_tool';
+  }
 
   @override
   void initState() {
@@ -142,8 +190,11 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
     final text = _inputController.text.trim();
     if (text.isEmpty || _isBotTyping) return;
 
+    final toolName = _resolveMcpToolName(text);
+
     setState(() {
       _messages.add(_ChatMessage(text: text, sender: _Sender.user));
+      _currentMcpTool = toolName;
       _isBotTyping = true;
       _inputController.clear();
     });
@@ -159,10 +210,14 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
               })
           .toList();
 
-      reply = await _chatService.sendMessage(
+      final res = await _chatService.sendMessage(
         message: text,
         history: history,
       );
+      reply = res.reply;
+      if (res.toolCalled != null && res.toolCalled!.isNotEmpty) {
+        _currentMcpTool = res.toolCalled;
+      }
     } catch (_) {
       await Future.delayed(const Duration(milliseconds: 600));
       reply = _getMockResponse(text);
@@ -419,25 +474,50 @@ class _ChatbotPanelState extends State<ChatbotPanel> {
   // ── Typing indicator ──────────────────────────────────────────────────────
 
   Widget _buildTypingIndicator() {
+    final tool = _currentMcpTool ?? 'career_advisor_tool';
     return Padding(
-      padding: const EdgeInsets.only(left: 14, bottom: 8),
+      padding: const EdgeInsets.only(left: 14, bottom: 10, right: 14),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: widget.isDarkMode
-                  ? const Color(0xFF334155)
-                  : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(16),
+                  ? const Color(0xFF1E293B)
+                  : const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _accentBlue.withOpacity(0.35),
+                width: 1,
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Thinking with MCP tools… ',
-                  style: TextStyle(fontSize: 11, color: widget.textSecondary),
+                const Icon(
+                  Icons.terminal_rounded,
+                  size: 14,
+                  color: _accentBlue,
                 ),
+                const SizedBox(width: 6),
+                Text(
+                  'Calling MCP Tool: ',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: widget.textSecondary,
+                  ),
+                ),
+                Text(
+                  tool,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'monospace',
+                    color: _accentBlue,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 const _TypingDots(color: _accentBlue),
               ],
             ),
